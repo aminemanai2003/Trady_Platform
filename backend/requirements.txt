@@ -1,0 +1,38 @@
+django>=5.0,<6.0
+djangorestframework>=3.15
+django-cors-headers>=4.3
+psycopg2-binary>=2.9
+influxdb-client>=1.40
+redis>=5.0
+channels>=4.0
+
+# LangChain ecosystem (free models)
+langchain>=0.2
+langgraph>=0.2
+langchain-community>=0.2
+langchain-huggingface>=0.0.1
+
+# Free LLMs
+transformers>=4.40
+torch>=2.0
+sentence-transformers>=2.6
+
+# Data processing
+pandas>=2.2
+numpy>=1.26
+scipy>=1.12
+scikit-learn>=1.4
+ta>=0.11.0  # Technical analysis
+
+# Async & Task Queue
+celery>=5.3
+celery[redis]>=5.3
+
+# Utils
+python-dotenv>=1.0
+pydantic>=2.7
+python-dateutil>=2.9
+
+# Production
+gunicorn>=22.0
+drf-spectacular>=0.27  # API docs
