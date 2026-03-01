@@ -12,7 +12,7 @@ class NewsLoader:
     """Load news articles from PostgreSQL"""
     
     def __init__(self):
-        self.db = DatabaseManager()
+        pass
     
     def load_news(
         self,
@@ -33,25 +33,29 @@ class NewsLoader:
         if end_time is None:
             end_time = datetime.now()
         
-        with self.db.get_postgres_connection() as conn:
-            if currencies:
-                query = """
-                SELECT id, published_at as timestamp, title, content, source, currencies
-                FROM news_articles
-                WHERE published_at BETWEEN %s AND %s
-                AND currencies && %s
-                ORDER BY published_at DESC
-                LIMIT %s
-                """
-                df = pd.read_sql(query, conn, params=(start_time, end_time, currencies, limit))
-            else:
-                query = """
-                SELECT id, published_at as timestamp, title, content, source, currencies
-                FROM news_articles
-                WHERE published_at BETWEEN %s AND %s
-                ORDER BY published_at DESC
-                LIMIT %s
-                """
-                df = pd.read_sql(query, conn, params=(start_time, end_time, limit))
-        
-        return df
+        try:
+            with DatabaseManager.get_postgres_connection() as conn:
+                if currencies:
+                    query = """
+                    SELECT id, published_at as timestamp, title, content, source,
+                           mentioned_currencies as currencies, sentiment_score
+                    FROM news_articles
+                    WHERE published_at BETWEEN %s AND %s
+                    AND mentioned_currencies ?| %s
+                    ORDER BY published_at DESC
+                    LIMIT %s
+                    """
+                    df = pd.read_sql(query, conn, params=(start_time, end_time, currencies, limit))
+                else:
+                    query = """
+                    SELECT id, published_at as timestamp, title, content, source,
+                           mentioned_currencies as currencies, sentiment_score
+                    FROM news_articles
+                    WHERE published_at BETWEEN %s AND %s
+                    ORDER BY published_at DESC
+                    LIMIT %s
+                    """
+                    df = pd.read_sql(query, conn, params=(start_time, end_time, limit))
+            return df
+        except Exception:
+            return pd.DataFrame(columns=['id', 'timestamp', 'title', 'content', 'source', 'currencies', 'sentiment_score'])

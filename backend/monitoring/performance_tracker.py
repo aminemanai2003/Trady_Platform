@@ -37,9 +37,9 @@ class PerformanceTracker:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO agent_performance_log
-                (agent_name, signal, entry_price, exit_price, pnl, timestamp)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (agent_name, signal, entry_price, exit_price, pnl, timestamp))
+                (agent_name, pair, signal_direction, confidence, was_correct, pnl, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (agent_name, 'EURUSD', 'BUY' if signal == 1 else 'SELL', 0.5, pnl > 0, pnl, timestamp))
             conn.commit()
     
     def get_agent_performance(
@@ -63,11 +63,11 @@ class PerformanceTracker:
         
         with self.db.get_postgres_connection() as conn:
             query = """
-            SELECT pnl, timestamp
+            SELECT pnl, created_at
             FROM agent_performance_log
             WHERE agent_name = %s
-            AND timestamp >= %s
-            ORDER BY timestamp
+            AND created_at >= %s
+            ORDER BY created_at
             """
             df = pd.read_sql(query, conn, params=(agent_name, start_date))
         

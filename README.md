@@ -1,290 +1,292 @@
-# Trady - AI-Powered FX Trading Platform
+# FX Alpha Platform — AI-Powered Multi-Agent Forex Trading
 
 <div align="center">
 
-![Trady Logo](https://img.shields.io/badge/Trady-AI%20Trading%20Platform-blue)
-![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
-![Django](https://img.shields.io/badge/django-5.0-green.svg)
-![LangChain](https://img.shields.io/badge/langchain-latest-orange.svg)
+![FX Alpha](https://img.shields.io/badge/FX%20Alpha-V2%20Production-blue)
+![Python](https://img.shields.io/badge/python-3.13-blue.svg)
+![Django](https://img.shields.io/badge/django-6.0-green.svg)
+![Next.js](https://img.shields.io/badge/next.js-16-black.svg)
+![HuggingFace](https://img.shields.io/badge/HuggingFace-flan--t5--base-yellow.svg)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A production-ready multi-agent AI system for foreign exchange trading**
+**Production multi-agent system for FX signal generation — Deterministic decisions + LLM explainability**
 
-[Features](#features) • [Architecture](#architecture) • [Installation](#installation) • [Usage](#usage) • [Team](#team)
+[Architecture](#architecture) • [Features](#features) • [Installation](#installation) • [API](#api-endpoints) • [Team](#team-dataminds)
 
 </div>
 
 ---
 
-## 🎯 Overview
+## Overview
 
-**Trady** is an advanced AI-powered forex trading platform developed by **Team DATAMINDS**. It leverages multi-agent architecture, LLMs, and the Team Data Science Process (TDSP) methodology to provide intelligent trading signals with full explainability.
+**FX Alpha Platform** is a production-grade forex trading intelligence system developed by **Team DATAMINDS**. It uses a layered architecture following the **TDSP (Team Data Science Process)** methodology with three specialized AI agents orchestrated by a meta-coordinator.
 
-### Key Highlights
+### Key Principles
 
-- 🤖 **Multi-Agent System**: Technical, Macro, and Sentiment agents working in harmony
-- 📊 **Real-time Analysis**: MT5 integration for live OHLCV data
-- 🧠 **LLM-Powered Reasoning**: Free/local models for explainable decisions
-- ⚡ **Production-Ready**: Clean architecture with Django REST API
-- 🔍 **Full Backtesting**: Walk-forward validation with performance metrics
-- 📈 **TDSP Compliant**: Automated documentation and monitoring
+- **Deterministic decisions** — All trading signals use rule-based logic (fast, reproducible, auditable)
+- **LLM for explainability only** — `google/flan-t5-base` generates human-readable explanations, never trading decisions
+- **Multi-source data fusion** — MT5 OHLCV, FRED macroeconomic data, financial news sentiment
+- **Production monitoring** — Drift detection, safety rules, performance tracking
 
 ---
 
-## ✨ Features
+## Architecture
 
-### Phase 1: Data Validation & Quality
-- ✅ Time-series integrity checks (missing timestamps, duplicates, gaps)
-- ✅ OHLC logical consistency validation
-- ✅ Macro data handling (missing values, forward-fill, normalization)
-- ✅ News deduplication and cleaning with embeddings
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (Next.js 16 · React 19)                 │
+│           TanStack Query · shadcn/ui · Recharts · Tailwind           │
+│                          Port: 3000                                   │
+└──────────────────────────────┬───────────────────────────────────────┘
+                               │ REST API (CORS)
+                               ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    BACKEND (Django 6 + DRF)                           │
+│                        Port: 8000                                     │
+│                                                                       │
+│   API Layer ──► Signal Layer (V2 Agents)                              │
+│                   CoordinatorAgentV2 (weighted voting)                 │
+│                     ├── TechnicalAgentV2    (40%)                     │
+│                     ├── MacroAgentV2        (35%)                     │
+│                     └── SentimentAgentV2    (25%)                     │
+│                                                                       │
+│   Feature Layer ──► 85+ features (60 technical + 25 temporal)         │
+│                     Cross-pair correlations · Multi-timeframe          │
+│                                                                       │
+│   Data Layer ──► TimeSeriesLoader (InfluxDB)                          │
+│                  MacroDataLoader  (PostgreSQL)                         │
+│                  NewsLoader       (PostgreSQL + HuggingFace)           │
+│                                                                       │
+│   Monitoring ──► PerformanceTracker · DriftDetector · SafetyMonitor   │
+│                                                                       │
+│   Backtesting ──► Walk-forward · Kelly Criterion · ATR Position Sizing│
+└────────┬─────────────────┬──────────────────┬────────────────────────┘
+         │                 │                  │
+    InfluxDB 2.7      PostgreSQL 15       Redis 7
+     (OHLCV)       (Macro + News + Signals)  (Cache)
+```
 
-### Phase 2: Feature Engineering
-- ✅ **Technical Indicators**: RSI, MACD, Bollinger Bands, ATR, Volatility, Trend, Support/Resistance
-- ✅ **Macro Features**: Rate differentials, inflation, economic surprises, yield spreads, risk sentiment
-- ✅ **Sentiment Analysis**: LLM-based classification, entity relevance, time-aligned sentiment
-
-### Phase 3-4: Multi-Agent Architecture
-- ✅ **TechnicalAgent**: Analyzes price action and indicators
-- ✅ **MacroAgent**: Evaluates fundamental economic factors
-- ✅ **SentimentAgent**: Processes news sentiment
-- ✅ **CoordinatorAgent**: Meta-agent with dynamic weight adjustment
-
-### Phase 5: Backtesting Engine
-- ✅ Walk-forward validation (no look-ahead bias)
-- ✅ Comprehensive metrics: Sharpe ratio, max drawdown, win rate, profit factor
-- ✅ Trade-by-trade analysis with decision context
-
-### Phase 6: Django REST API
-- ✅ `/api/signals/latest/` - Get latest trading signal
-- ✅ `/api/signals/history/` - Historical signals
-- ✅ `/api/agent/explanations/` - Agent reasoning
-- ✅ `/api/backtest/run/` - Run backtests
-- ✅ `/api/health/data-validation/` - Data quality status
-
-### Phase 7: TDSP Documentation
-- ✅ Automated report generation
-- ✅ Feature importance analysis
-- ✅ Agent performance comparison
-- ✅ Model drift monitoring
-- ✅ JSON/Markdown export
-
----
-
-## 🏗️ Architecture
+### Directory Structure
 
 ```
 fx-alpha-platform/
 ├── backend/
-│   ├── config/           # Django settings
-│   ├── core/             # Database managers, LLM factory
-│   ├── validation/       # Data quality validation
-│   ├── features/         # Feature engineering pipelines
-│   ├── agents/           # Multi-agent system
-│   │   ├── technical_agent.py
-│   │   ├── macro_agent.py
-│   │   ├── sentiment_agent.py
-│   │   └── coordinator.py
-│   ├── backtesting/      # Backtesting engine
-│   ├── api/              # REST API endpoints
-│   └── tdsp/             # Documentation generation
-├── frontend/             # Next.js dashboard
-└── docker-compose.yml    # Containerized deployment
-```
-
-### Data Flow
-
-```
-┌─────────────┐
-│   MT5 Data  │──┐
-└─────────────┘  │
-                 │     ┌──────────────┐
-┌─────────────┐  ├────▶│ Validation   │
-│  Macro Data │──┤     └──────────────┘
-└─────────────┘  │            │
-                 │            ▼
-┌─────────────┐  │     ┌──────────────┐
-│  News RSS   │──┘     │   Features   │
-└─────────────┘        └──────────────┘
-                              │
-                              ▼
-                  ┌────────────────────────┐
-                  │    Multi-Agent System  │
-                  ├────────────────────────┤
-                  │ • Technical Agent      │
-                  │ • Macro Agent          │
-                  │ • Sentiment Agent      │
-                  └────────────────────────┘
-                              │
-                              ▼
-                  ┌────────────────────────┐
-                  │  Coordinator Agent     │
-                  │  (Dynamic Weighting)   │
-                  └────────────────────────┘
-                              │
-                              ▼
-                  ┌────────────────────────┐
-                  │   Trading Decision     │
-                  │   + Explanation        │
-                  └────────────────────────┘
+│   ├── config/                 # Django settings, CORS, DB config
+│   ├── core/                   # DatabaseManager, LLMFactory
+│   ├── data_layer/             # TimeSeriesLoader, MacroDataLoader, NewsLoader
+│   ├── feature_layer/          # TechnicalFeatureEngine, MacroFeatureEngine
+│   │   ├── technical_features.py   # 60+ technical indicators
+│   │   └── cross_pair_correlations.py  # Cross-pair correlation engine
+│   ├── signal_layer/           # V2 Agents (deterministic)
+│   │   ├── coordinator_agent_v2.py     # Meta-agent + correlation validation
+│   │   ├── technical_agent_v2.py       # RSI, MACD, Bollinger, ADX rules
+│   │   ├── macro_agent_v2.py           # Rate diff, inflation, carry trade
+│   │   └── sentiment_agent_v2.py       # NLP scores + LLM classification
+│   ├── backtesting/            # Walk-forward engine + Kelly Criterion
+│   ├── monitoring/             # Drift, safety, performance tracking
+│   ├── api/                    # V2 REST endpoints (DRF ViewSets)
+│   ├── agents/                 # Legacy agent status endpoints
+│   ├── analytics/              # KPIs & performance (real PostgreSQL queries)
+│   ├── data/                   # Calendar, technical indicator endpoints
+│   └── signals/                # Legacy signal endpoints
+├── frontend/
+│   └── src/
+│       ├── app/(dashboard)/    # Pages: trading, agents, analytics, reports
+│       ├── components/ui/      # shadcn/ui components
+│       ├── lib/api.ts          # API client (V2 endpoints)
+│       └── types/              # TypeScript interfaces
+├── docker-compose.yml          # PostgreSQL + InfluxDB + Redis
+└── ARCHITECTURE.md             # Full 16-section technical documentation
 ```
 
 ---
 
-## 🚀 Installation
+## Features
+
+### Data Science Objectives (DSOs)
+
+| DSO | Description | Status |
+|-----|-------------|--------|
+| **DSO1.1** | Multi-source data pipeline (MT5, FRED, News) | ✅ |
+| **DSO1.2** | Multi-timeframe analysis (1H, 4H, D1, W1, M1) | ✅ |
+| **DSO1.3** | Cross-pair correlation validation | ✅ |
+| **DSO2.1** | 85+ feature engineering (technical + temporal) | ✅ |
+| **DSO2.2** | Walk-forward backtesting (no look-ahead bias) | ✅ |
+| **DSO2.3** | Kelly Criterion + ATR position sizing | ✅ |
+| **DSO3.1** | Multi-agent voting with dynamic weights | ✅ |
+| **DSO3.2** | LLM explainability (flan-t5-base) | ✅ |
+| **DSO4.1** | Data quality validation (>90% threshold) | ✅ |
+| **DSO4.2** | Drift detection & safety monitoring | ✅ |
+| **DSO5.1** | Full TDSP documentation & reporting | ✅ |
+
+### Technical Features (85+)
+
+- **Trend**: SMA (10/20/50/200), EMA (9/12/21/26/55), MACD, ADX, Ichimoku, Parabolic SAR
+- **Momentum**: RSI, Stochastic, Williams %R, CCI, MFI, ROC
+- **Volatility**: Bollinger Bands, ATR, Keltner Channel, Donchian Channel, Historical Vol
+- **Volume**: OBV, VWAP, Accumulation/Distribution
+- **Temporal**: Session flags (Asian/European/US/Overlap), cyclical encoding, NFP week, high-volume hours
+
+### Cross-Pair Correlations
+
+- Pearson correlation matrix on log-returns (EURUSD, GBPUSD, USDJPY, USDCHF, EURGBP, EURJPY)
+- Fundamental expected values vs calculated (deviation detection)
+- Signal confidence adjustment: +15% if aligned, -25% if conflicting
+
+### Multi-Agent System
+
+| Agent | Weight | Method |
+|-------|--------|--------|
+| **TechnicalAgentV2** | 40% | RSI/MACD/Bollinger/ADX rules → BUY/SELL/NEUTRAL |
+| **MacroAgentV2** | 35% | Rate differentials, carry trade, inflation analysis |
+| **SentimentAgentV2** | 25% | Pre-computed DB scores (fast) + LLM fallback |
+| **CoordinatorAgentV2** | — | Weighted voting, regime detection, correlation validation |
+
+---
+
+## Installation
 
 ### Prerequisites
 
-- Python 3.10+
-- PostgreSQL 14+
-- InfluxDB 2.x
-- Redis 7+
+- Python 3.13+
+- Docker & Docker Compose (for PostgreSQL, InfluxDB, Redis)
 - Node.js 18+ (for frontend)
 
-### Backend Setup
+### 1. Infrastructure
 
 ```bash
-# Clone the repository
-git clone https://github.com/INESCHTI/Dataminds_majorcurrencies.git
-cd Dataminds_majorcurrencies/fx-alpha-platform
-
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install dependencies
-cd backend
-pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
-
-# Run migrations
-python manage.py makemigrations
-python manage.py migrate
-
-# Create superuser
-python manage.py createsuperuser
-
-# Start development server
-python manage.py runserver
+cd fx-alpha-platform
+docker-compose up -d  # PostgreSQL 15 + InfluxDB 2.7 + Redis 7
 ```
 
-### Frontend Setup
+### 2. Backend
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+# source .venv/bin/activate     # Linux/Mac
+
+cd backend
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8000
+```
+
+### 3. Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev    # http://localhost:3000
 ```
 
-### Docker Deployment
+---
+
+## API Endpoints
+
+### V2 Signal Pipeline
 
 ```bash
-docker-compose up -d
+# Generate trading signal (full pipeline)
+POST /api/v2/signals/generate_signal/
+Body: {"pair": "EURUSD"}
+
+# Health check + agent performances
+GET  /api/v2/monitoring/health_check/
+
+# Drift detection
+GET  /api/v2/monitoring/drift_detection/
+
+# Explainability
+POST /api/v2/explain/explain_signal/
+Body: {"pair": "EURUSD"}
 ```
 
----
-
-## 📖 Usage
-
-### Generate Trading Signal
-
-```python
-from agents.coordinator import CoordinatorAgent
-
-coordinator = CoordinatorAgent()
-decision = coordinator.make_decision('EURUSD')
-
-print(f"Decision: {decision['decision']}")
-print(f"Confidence: {decision['confidence']:.2f}")
-print(f"Risk Level: {decision['risk_level']}")
-print(f"Reasoning: {decision['reasoning']}")
-```
-
-### API Examples
+### Backtesting & Correlations
 
 ```bash
-# Get latest signal
-curl http://localhost:8000/api/signals/latest/?symbol=EURUSD
+# Run walk-forward backtest
+POST /api/v2/backtesting/run_backtest/
+Body: {"pair": "EURUSD", "days": 60}
 
-# Run backtest
-curl -X POST http://localhost:8000/api/backtest/run/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "symbol": "EURUSD",
-    "start_date": "2024-01-01T00:00:00Z",
-    "end_date": "2024-12-31T23:59:59Z",
-    "name": "Q4 2024 Backtest"
-  }'
+# Kelly Criterion position sizing
+POST /api/v2/backtesting/position_sizing/
+Body: {"pair": "EURUSD"}
 
-# Check data validation status
-curl http://localhost:8000/api/health/data-validation/
+# Cross-pair correlation matrix
+GET  /api/v2/correlations/correlation_matrix/
+
+# Single pair correlation analysis
+GET  /api/v2/correlations/pair_analysis/?symbol=EURUSD
+
+# Data quality validation
+GET  /api/v2/validation/validate_data/?symbol=EURUSD
 ```
 
-### Calculate Features
-
-```python
-from features.technical_calculator import TechnicalFeaturesCalculator
-from datetime import datetime, timedelta
-
-# Calculate technical features
-calculator = TechnicalFeaturesCalculator('EURUSD')
-start_time = (datetime.now() - timedelta(days=30)).isoformat()
-end_time = datetime.now().isoformat()
-
-df = calculator.calculate_all(start_time, end_time)
-print(f"Calculated {len(df)} feature records")
-```
-
-### Run Validation
-
-```python
-from validation.timeseries_validator import TimeSeriesValidator
-
-validator = TimeSeriesValidator('EURUSD', start_time, end_time)
-result = validator.validate_all()
-
-print(f"Validation: {'PASSED' if result.is_valid else 'FAILED'}")
-print(f"Quality Score: {result.metrics['quality_score']:.2%}")
-```
-
----
-
-## 🧪 Testing
+### Legacy Endpoints
 
 ```bash
-# Run unit tests
-python manage.py test
+GET  /api/kpis/                     # KPI dashboard (real PostgreSQL queries)
+GET  /api/analytics/performance/    # Performance history
+GET  /api/agents/status/            # Agent status + metrics
+POST /api/agents/run/               # Run agents (real V2 pipeline)
+GET  /api/data/economic-calendar/   # Economic calendar (27 events, 5 currencies)
+GET  /api/data/technical-indicators/ # Technical indicators (real feature engine)
+```
 
-# Run coverage
-coverage run --source='.' manage.py test
-coverage report
+### Example Response — Signal Generation
 
-# Run linting
-flake8 backend/
-pylint backend/
+```json
+{
+  "success": true,
+  "signal": {
+    "direction": "NEUTRAL",
+    "confidence": 0.44,
+    "weighted_score": 0.0,
+    "reasoning": "Final Decision: NEUTRAL\n\nAgent Breakdown:\n- TechnicalV2: BUY (55%, w=40%)\n- MacroV2: NEUTRAL (80%, w=35%)\n- SentimentV2: NEUTRAL (54%, w=25%)",
+    "agent_votes": {
+      "technical": {"signal": "BUY", "confidence": 0.55},
+      "macro": {"signal": "NEUTRAL", "confidence": 0.80},
+      "sentiment": {"signal": "NEUTRAL", "confidence": 0.54}
+    },
+    "market_regime": "volatile"
+  }
+}
 ```
 
 ---
 
-## 📊 Performance Metrics
+## Tech Stack
 
-Our multi-agent system has been backtested on historical data:
-
-| Metric          | Value    |
-|----------------|----------|
-| Sharpe Ratio   | 1.8+     |
-| Max Drawdown   | < 15%    |
-| Win Rate       | 58%+     |
-| Profit Factor  | 1.6+     |
-
-*Results may vary based on market conditions and configuration.*
+| Component | Technology | Version |
+|-----------|-----------|---------|
+| Backend | Django + DRF | 6.0 |
+| Frontend | Next.js + React | 16 / 19 |
+| Time Series DB | InfluxDB | 2.7 |
+| Relational DB | PostgreSQL | 15 |
+| Cache | Redis | 7-alpine |
+| NLP/LLM | HuggingFace transformers | 4.57.6 |
+| LLM Model | google/flan-t5-base | — |
+| Embeddings | all-MiniLM-L6-v2 | — |
+| Technical Analysis | ta library | 0.11.0 |
+| UI Components | shadcn/ui + Tailwind CSS | — |
+| Charts | Recharts | — |
 
 ---
 
-## 🤝 Team DATAMINDS
+## Performance
+
+| Metric | Value |
+|--------|-------|
+| Signal Generation (cold) | ~6.7s |
+| Signal Generation (warm) | ~0.4s |
+| Technical Features | 85+ indicators |
+| Currency Pairs | 6 (EURUSD, GBPUSD, USDJPY, USDCHF, EURGBP, EURJPY) |
+| Data Quality Score | 100% (3000+ OHLCV records validated) |
+
+---
+
+## Team DATAMINDS
 
 <table>
   <tr>
@@ -330,42 +332,22 @@ Our multi-agent system has been backtested on historical data:
 
 ---
 
-## 📚 Documentation
+## Documentation
 
-- [API Documentation](docs/API.md)
-- [Architecture Guide](docs/ARCHITECTURE.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
-- [Contributing Guidelines](CONTRIBUTING.md)
-
----
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Full 16-section technical documentation
+- [Data Preparation](../Data%20Preparation/README.md) — ETL pipeline docs
+- [Data Acquisition](../Data%20Acquisition/README.md) — Source data pipeline
 
 ---
 
-## 🙏 Acknowledgments
+## License
 
-- LangChain for agent framework
-- HuggingFace for free LLM models
-- MetaTrader 5 for market data
-- Django and Django REST Framework
-
----
-
-## 📧 Contact
-
-For questions or collaboration:
-- Email: team@dataminds.ai
-- GitHub: [@INESCHTI](https://github.com/INESCHTI)
+MIT License — see [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-**Built with ❤️ by Team DATAMINDS**
-
-⭐ Star us on GitHub — it helps!
+**Built by Team DATAMINDS — March 2026**
 
 </div>

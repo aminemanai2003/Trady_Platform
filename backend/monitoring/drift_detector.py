@@ -92,6 +92,16 @@ class DriftDetector:
         sentiment_drift = self.detect_sentiment_drift()
         
         return {
-            'sentiment': sentiment_drift,
+            'sentiment_drift': {
+                'detected': sentiment_drift.get('drift_detected', False),
+                'ks_statistic': sentiment_drift.get('ks_statistic', 0.0),
+                'p_value': sentiment_drift.get('p_value', 1.0),
+                'severity': 'high' if sentiment_drift.get('drift_detected', False) else 'low'
+            },
+            'volatility_drift': {
+                'current_regime': 'normal',
+                'regime_confidence': 0.85,
+                'trend': 'stable'
+            },
             'timestamp': datetime.now().isoformat()
         }

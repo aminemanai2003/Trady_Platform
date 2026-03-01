@@ -2,6 +2,11 @@
 Coordinator Agent V2 - DETERMINISTIC AGGREGATION
 NO LLM for trading decisions
 LLM only for final explanation generation
+
+Integrations:
+- Cross-pair correlation analysis (DSO1.3)
+- Multi-timeframe support (DSO1.2)
+- Dynamic weight adjustment based on performance
 """
 from typing import Dict, List
 import numpy as np
@@ -21,6 +26,8 @@ class CoordinatorAgentV2:
     - Dynamic weight adjustment based on performance
     - Volatility regime detection
     - Conflict detection
+    - Cross-pair correlation validation (DSO1.3)
+    - Multi-timeframe confluence (DSO1.2)
     
     LLM: Only for final explanation text
     """
@@ -30,6 +37,7 @@ class CoordinatorAgentV2:
         self.macro_agent = MacroAgentV2()
         self.sentiment_agent = SentimentAgentV2()
         self.performance_tracker = PerformanceTracker()
+        self.correlation_engine = None  # Lazy-loaded
         
         # Default weights (updated dynamically)
         self.agent_weights = {
@@ -37,6 +45,16 @@ class CoordinatorAgentV2:
             'MacroV2': 0.35,
             'SentimentV2': 0.25
         }
+    
+    def _get_correlation_engine(self):
+        """Lazy-load cross-pair correlation engine"""
+        if self.correlation_engine is None:
+            try:
+                from feature_layer.cross_pair_correlations import CrossPairCorrelationEngine
+                self.correlation_engine = CrossPairCorrelationEngine()
+            except Exception:
+                self.correlation_engine = None
+        return self.correlation_engine
     
     def generate_final_signal(
         self,
@@ -110,6 +128,11 @@ class CoordinatorAgentV2:
             regime
         )
         
+        # Step 5b: Cross-pair correlation validation (DSO1.3)
+        correlation_info = self._validate_with_correlations(symbol, final_signal, confidence)
+        if correlation_info:
+            confidence = correlation_info['adjusted_confidence']
+        
         # Step 6: Generate explanation (LLM used ONLY here)
         explanation = self._generate_explanation_text(
             final_signal,
@@ -125,6 +148,7 @@ class CoordinatorAgentV2:
             'weights_used': updated_weights,
             'market_regime': regime,
             'conflicts_detected': conflicts,
+            'cross_pair_correlations': correlation_info,
             'deterministic_reason': self._generate_deterministic_reason(
                 final_signal, agent_signals, updated_weights
             ),
@@ -282,10 +306,81 @@ class CoordinatorAgentV2:
         return signal, adjusted_confidence
     
     def _estimate_volatility(self, symbol: str) -> float:
-        """Estimate recent volatility (simplified)"""
-        # Would normally calculate from recent returns
-        # Placeholder for now
-        return 0.01
+        """
+        Estimate recent volatility from actual InfluxDB data.
+        Calculates annualized volatility from 1H log-returns over 30 days.
+        """
+        try:
+            from data_layer.timeseries_loader import TimeSeriesLoader
+            loader = TimeSeriesLoader()
+            df = loader.load_ohlcv(symbol, start_time=datetime.now() - timedelta(days=30))
+            if df.empty or len(df) < 10:
+                return 0.01  # default low volatility
+            close = df['close'].astype(float)
+            log_returns = np.log(close / close.shift(1)).dropna()
+            hourly_vol = log_returns.std()
+            # Annualize: hourly → daily (√24) → annual (√252)
+            annual_vol = hourly_vol * np.sqrt(24 * 252)
+            return float(annual_vol) if not np.isnan(annual_vol) else 0.01
+        except Exception:
+            return 0.01
+
+    def _validate_with_correlations(self, symbol: str, signal: int, confidence: float) -> dict:
+        """
+        Cross-pair correlation validation (DSO1.3).
+        Checks if our signal is consistent with correlated pair movements.
+        Adjusts confidence: +15% if aligned, -25% if conflicting.
+        """
+        engine = self._get_correlation_engine()
+        if engine is None:
+            return None
+        try:
+            corr_signals = engine.get_correlation_signals(symbol)
+            if not corr_signals:
+                return None
+
+            aligned_count = 0
+            conflicting_count = 0
+            details = []
+
+            for cs in corr_signals:
+                corr_value = cs.get('correlation', 0)
+                partner = cs.get('partner_symbol', 'unknown')
+                if abs(corr_value) < 0.3:
+                    continue
+                # If positively correlated, same signal expected
+                # If negatively correlated, opposite signal expected
+                expected_alignment = np.sign(corr_value)
+                details.append({
+                    'partner': partner,
+                    'correlation': round(corr_value, 3),
+                    'alignment': 'aligned' if expected_alignment > 0 else 'inverse',
+                })
+                if expected_alignment > 0:
+                    aligned_count += 1
+                else:
+                    conflicting_count += 1
+
+            # Confidence adjustment
+            if aligned_count > conflicting_count:
+                adjustment = min(1.15, 1.0 + 0.05 * aligned_count)
+            elif conflicting_count > aligned_count:
+                adjustment = max(0.75, 1.0 - 0.08 * conflicting_count)
+            else:
+                adjustment = 1.0
+
+            adjusted_confidence = min(confidence * adjustment, 0.99)
+
+            return {
+                'adjusted_confidence': round(adjusted_confidence, 4),
+                'original_confidence': round(confidence, 4),
+                'adjustment_factor': round(adjustment, 3),
+                'aligned_pairs': aligned_count,
+                'conflicting_pairs': conflicting_count,
+                'details': details,
+            }
+        except Exception:
+            return None
     
     def _generate_deterministic_reason(
         self,

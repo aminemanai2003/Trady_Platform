@@ -98,7 +98,7 @@ class MacroFeatureEngine:
         Score = rate_differential / volatility
         Higher is better for carry trades
         """
-        if volatility == 0 or np.isnan(volatility):
+        if volatility == 0 or not isinstance(volatility, (int, float)) or np.isnan(float(volatility)):
             return 0.0
         return rate_differential / volatility
     

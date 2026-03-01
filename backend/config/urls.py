@@ -8,4 +8,5 @@ urlpatterns = [
     path("api/", include("signals.urls")),
     path("api/", include("agents.urls")),
     path("api/", include("analytics.urls")),
+    path("api/", include("api.urls_v2")),  # V2 Architecture endpoints
 ]

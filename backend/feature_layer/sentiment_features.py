@@ -21,8 +21,8 @@ class SentimentFeatureEngine:
     """Calculate sentiment features with minimal LLM usage"""
     
     def __init__(self):
-        self.embeddings = LLMFactory.get_embeddings()
-        self.llm = LLMFactory.get_llm()
+        self._embeddings = None
+        self._llm = None
         
         # Strict JSON-only prompt
         self.sentiment_prompt = PromptTemplate(
@@ -44,6 +44,20 @@ Examples:
 JSON:"""
         )
     
+    @property
+    def llm(self):
+        """Lazy-load LLM only when needed (not for pre-scored articles)"""
+        if self._llm is None:
+            self._llm = LLMFactory.get_llm()
+        return self._llm
+    
+    @property
+    def embeddings(self):
+        """Lazy-load embeddings only when needed"""
+        if self._embeddings is None:
+            self._embeddings = LLMFactory.get_embeddings()
+        return self._embeddings
+    
     def calculate_sentiment_batch(
         self,
         news_df: pd.DataFrame,
@@ -52,25 +66,37 @@ JSON:"""
         """
         Calculate sentiment for batch of news
         
-        LLM used ONLY for classification
-        All aggregation is deterministic Python
+        Uses pre-computed sentiment_score from DB when available (fast path).
+        Falls back to LLM classification only for articles without scores.
+        All aggregation is deterministic Python.
         """
         results = []
         
         for idx, row in news_df.iterrows():
-            sentiment_data = self._classify_single_article(
-                row['title'],
-                row.get('content', ''),
-                currencies
-            )
-            
-            results.append({
-                'news_id': row['id'],
-                'timestamp': row['timestamp'],
-                'sentiment_score': sentiment_data['sentiment'],
-                'relevance': sentiment_data['relevance'],
-                'explained': sentiment_data['explained']
-            })
+            # Fast path: use pre-computed sentiment score from database
+            db_score = row.get('sentiment_score', None)
+            if db_score is not None and not pd.isna(db_score):
+                results.append({
+                    'news_id': row['id'],
+                    'timestamp': row['timestamp'],
+                    'sentiment_score': float(db_score),
+                    'relevance': 0.8,  # DB articles are pre-vetted
+                    'explained': row.get('title', 'Pre-analyzed article')
+                })
+            else:
+                # Slow path: LLM classification (only for unscored articles)
+                sentiment_data = self._classify_single_article(
+                    row['title'],
+                    row.get('content', ''),
+                    currencies
+                )
+                results.append({
+                    'news_id': row['id'],
+                    'timestamp': row['timestamp'],
+                    'sentiment_score': sentiment_data['sentiment'],
+                    'relevance': sentiment_data['relevance'],
+                    'explained': sentiment_data['explained']
+                })
         
         return pd.DataFrame(results)
     
@@ -183,7 +209,10 @@ JSON:"""
             }
         
         # Calculate time decay weights
-        now = pd.Timestamp.now()
+        now = pd.Timestamp.now(tz='UTC')
+        # Ensure timestamps are tz-aware
+        if sentiment_df['timestamp'].dt.tz is None:
+            sentiment_df['timestamp'] = pd.to_datetime(sentiment_df['timestamp']).dt.tz_localize('UTC')
         sentiment_df['hours_ago'] = (now - sentiment_df['timestamp']).dt.total_seconds() / 3600
         sentiment_df['time_weight'] = np.exp(-sentiment_df['hours_ago'] / time_decay_hours)
         

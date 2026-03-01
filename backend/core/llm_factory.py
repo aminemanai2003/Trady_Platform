@@ -4,7 +4,7 @@ Uses local/free models only
 """
 from langchain_community.llms import HuggingFacePipeline
 from langchain_huggingface import HuggingFaceEmbeddings
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import torch
 
 
@@ -28,7 +28,7 @@ class LLMFactory:
         
         # Use smaller models for CPU inference
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForSeq2SeqLM.from_pretrained(
             model_name,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             device_map="auto" if torch.cuda.is_available() else None,
@@ -36,7 +36,7 @@ class LLMFactory:
         )
         
         pipe = pipeline(
-            "text2text-generation" if "t5" in model_name.lower() else "text-generation",
+            "text2text-generation",
             model=model,
             tokenizer=tokenizer,
             max_new_tokens=512,

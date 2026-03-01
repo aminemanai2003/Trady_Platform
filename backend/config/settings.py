@@ -65,18 +65,31 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "forex_metadata"),
-        "USER": os.getenv("POSTGRES_USER", "forex_user"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "forex_pass"),
+        "USER": os.getenv("POSTGRES_USER", "dataminds"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "dataminds_secure_password"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
     }
 }
 
+# Direct database settings for core.database module
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "forex_metadata")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "dataminds")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "dataminds_secure_password")
+
 # InfluxDB settings (existing from Data Acquisition)
 INFLUXDB_URL = os.getenv("INFLUXDB_URL", "http://localhost:8086")
-INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN", "")
+INFLUXDB_TOKEN = os.getenv("INFLUXDB_TOKEN", "my-super-secret-token")
 INFLUXDB_ORG = os.getenv("INFLUXDB_ORG", "forex_org")
 INFLUXDB_BUCKET = os.getenv("INFLUXDB_BUCKET", "forex_data")
+
+# Direct InfluxDB settings for core.database module
+INFLUX_URL = INFLUXDB_URL
+INFLUX_TOKEN = INFLUXDB_TOKEN
+INFLUX_ORG = INFLUXDB_ORG
+INFLUX_BUCKET = INFLUXDB_BUCKET
 
 # REST Framework
 REST_FRAMEWORK = {
