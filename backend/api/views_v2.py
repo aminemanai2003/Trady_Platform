@@ -80,11 +80,53 @@ class TradingSignalV2ViewSet(viewsets.ViewSet):
                     sig = signal_map.get(data['signal'], 'NEUTRAL')
                     conflicts_list.append(f"{agent}: {sig} ({data['confidence']:.0%})")
             
+            direction = signal_map.get(result['final_signal'], 'NEUTRAL')
+            confidence = result['confidence']
+
+            # Auto-log to trading_signals_log
+            try:
+                from core.database import DatabaseManager
+                import json as _json
+                with DatabaseManager.get_postgres_connection() as conn:
+                    cur = conn.cursor()
+                    cur.execute("""
+                        INSERT INTO trading_signals_log (pair, direction, confidence, agent_votes, reasoning, created_at)
+                        VALUES (%s, %s, %s, %s, %s, NOW())
+                    """, (
+                        symbol,
+                        direction,
+                        confidence,
+                        _json.dumps({
+                            agent.lower().replace('v2',''): {
+                                'signal': signal_map.get(data['signal'], 'NEUTRAL'),
+                                'confidence': data['confidence']
+                            }
+                            for agent, data in result['agent_signals'].items()
+                        }),
+                        result['explanation'][:500]
+                    ))
+                    # Also log per-agent entry to agent_performance_log
+                    for agent_name, data in result['agent_signals'].items():
+                        cur.execute("""
+                            INSERT INTO agent_performance_log (agent_name, pair, signal_direction, confidence, was_correct, pnl, created_at)
+                            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        """, (
+                            agent_name,
+                            symbol,
+                            signal_map.get(data['signal'], 'NEUTRAL'),
+                            data['confidence'],
+                            None,  # outcome unknown at signal time
+                            None
+                        ))
+                    conn.commit()
+            except Exception:
+                pass  # Don't break signal generation if logging fails
+            
             return Response({
                 'success': True,
                 'signal': {
-                    'direction': signal_map.get(result['final_signal'], 'NEUTRAL'),
-                    'confidence': result['confidence'],
+                    'direction': direction,
+                    'confidence': confidence,
                     'weighted_score': result.get('weighted_score', 0.0),
                     'reasoning': result['explanation'],
                     'agent_votes': {
@@ -208,7 +250,7 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
                 'win_rate': perf.get('win_rate', 0.0),
                 'sharpe_ratio': perf.get('sharpe_ratio', 0.0),
                 'max_drawdown': perf.get('max_drawdown', 0.0),
-                'avg_confidence': 0.7,  # This would come from signals table
+                'avg_confidence': perf.get('avg_confidence', 0.0),
                 'last_30d_accuracy': perf.get('win_rate', 0.0),
                 'total_pnl': perf.get('avg_pnl', 0.0) * perf.get('trade_count', 0)
             }

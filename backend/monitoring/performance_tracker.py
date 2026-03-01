@@ -63,7 +63,7 @@ class PerformanceTracker:
         
         with self.db.get_postgres_connection() as conn:
             query = """
-            SELECT pnl, created_at
+            SELECT pnl, created_at, confidence, was_correct
             FROM agent_performance_log
             WHERE agent_name = %s
             AND created_at >= %s
@@ -77,23 +77,40 @@ class PerformanceTracker:
                 'win_rate': 0.0,
                 'avg_pnl': 0.0,
                 'max_drawdown': 0.0,
-                'trade_count': 0
+                'trade_count': 0,
+                'avg_confidence': 0.0,
             }
         
-        # Calculate metrics
-        returns = df['pnl'].values
+        # Use pnl rows that are non-null for return stats
+        pnl_df = df[df['pnl'].notna()]
+        if pnl_df.empty:
+            # No outcome data yet — compute from confidence signals
+            avg_conf = float(df['confidence'].mean()) if 'confidence' in df.columns else 0.0
+            return {
+                'sharpe_ratio': 0.0,
+                'win_rate': 0.0,
+                'avg_pnl': 0.0,
+                'max_drawdown': 0.0,
+                'trade_count': len(df),
+                'avg_confidence': avg_conf,
+            }
+        
+        # Calculate metrics from actual outcomes
+        returns = pnl_df['pnl'].values
         
         sharpe = self._calculate_sharpe(returns)
         win_rate = (returns > 0).sum() / len(returns)
         avg_pnl = returns.mean()
         max_dd = self._calculate_max_drawdown(returns)
+        avg_conf = float(df['confidence'].mean()) if 'confidence' in df.columns else 0.0
         
         return {
             'sharpe_ratio': float(sharpe),
             'win_rate': float(win_rate),
             'avg_pnl': float(avg_pnl),
             'max_drawdown': float(max_dd),
-            'trade_count': len(returns)
+            'trade_count': len(df),
+            'avg_confidence': avg_conf,
         }
     
     @staticmethod
