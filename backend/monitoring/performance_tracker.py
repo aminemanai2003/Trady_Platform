@@ -115,7 +115,11 @@ class PerformanceTracker:
     
     @staticmethod
     def _calculate_sharpe(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
-        """Calculate Sharpe ratio"""
+        """
+        Calculate per-trade Sharpe ratio.
+        No annualization: these are individual trade returns, not daily portfolio returns.
+        Typical range: -2 to +2 for real trading strategies.
+        """
         if len(returns) < 2:
             return 0.0
         
@@ -123,7 +127,7 @@ class PerformanceTracker:
         if excess_returns.std() == 0:
             return 0.0
         
-        return excess_returns.mean() / excess_returns.std() * np.sqrt(252)  # Annualized
+        return excess_returns.mean() / excess_returns.std()
     
     @staticmethod
     def _calculate_max_drawdown(returns: np.ndarray) -> float:
