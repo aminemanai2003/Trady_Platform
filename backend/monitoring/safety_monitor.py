@@ -85,8 +85,8 @@ class SafetyMonitor:
                 query = """
                 SELECT pnl
                 FROM agent_performance_log
-                WHERE timestamp >= %s
-                ORDER BY timestamp
+                WHERE created_at >= %s
+                ORDER BY created_at
                 """
                 df = pd.read_sql(query, conn, params=(start_date,))
         except Exception:
