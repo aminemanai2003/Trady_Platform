@@ -95,7 +95,10 @@ class TradingSignalV2ViewSet(viewsets.ViewSet):
                         }
                         for agent, data in result['agent_signals'].items()
                     },
-                    'weights': result['weights_used'],
+                    'weights': {
+                        k.lower().replace('v2', ''): v
+                        for k, v in result['weights_used'].items()
+                    },
                     'market_regime': result['market_regime'],
                     'conflicts': conflicts_list,
                     'timestamp': result['timestamp']
