@@ -263,5 +263,8 @@ def main():
     print("✅ NEWS DATA ACQUISITION COMPLETE")
     print("=" * 60)
 
+# Alias for orchestrator / API calls
+collect_news_data = main
+
 if __name__ == "__main__":
     main()

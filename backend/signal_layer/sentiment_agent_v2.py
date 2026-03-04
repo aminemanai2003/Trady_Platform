@@ -26,7 +26,7 @@ class SentimentAgentV2:
     def generate_signal(
         self,
         currencies: List[str],
-        lookback_hours: int = 48
+        lookback_hours: int = 168  # 7 days — ensures coverage even if pipeline was idle
     ) -> Dict:
         """
         Generate sentiment signal

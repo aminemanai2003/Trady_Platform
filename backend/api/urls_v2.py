@@ -10,6 +10,7 @@ from .views_v2 import (
     BacktestingViewSet,
     CorrelationViewSet,
     ValidationViewSet,
+    DataRefreshViewSet,
 )
 
 router = DefaultRouter()
@@ -19,6 +20,7 @@ router.register(r'explain', ExplainabilityViewSet, basename='explain-v2')
 router.register(r'backtesting', BacktestingViewSet, basename='backtesting-v2')
 router.register(r'correlations', CorrelationViewSet, basename='correlations-v2')
 router.register(r'validation', ValidationViewSet, basename='validation-v2')
+router.register(r'data', DataRefreshViewSet, basename='data-v2')
 
 urlpatterns = [
     path('v2/', include(router.urls)),

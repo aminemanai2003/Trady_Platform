@@ -535,3 +535,58 @@ class ValidationViewSet(viewsets.ViewSet):
                 'success': False,
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DataRefreshViewSet(viewsets.ViewSet):
+    """
+    Background data refresh — triggered by the frontend on page load.
+    Runs news collection in a daemon thread so it never blocks the API.
+    """
+
+    # Simple in-memory state (per process)
+    _status = {'running': False, 'last_run': None, 'last_result': None}
+
+    @action(detail=False, methods=['post'])
+    def refresh_news(self, request):
+        """
+        POST /api/v2/data/refresh_news/
+        Starts a background thread that scrapes forex news RSS feeds
+        and inserts fresh articles into PostgreSQL.
+        Returns immediately with 202 Accepted.
+        """
+        import threading
+
+        if DataRefreshViewSet._status['running']:
+            return Response({
+                'status': 'already_running',
+                'message': 'News refresh already in progress',
+                'last_run': DataRefreshViewSet._status['last_run'],
+            }, status=status.HTTP_202_ACCEPTED)
+
+        def _run():
+            DataRefreshViewSet._status['running'] = True
+            try:
+                from acquisition.news_collector import collect_news_data
+                collect_news_data()
+                DataRefreshViewSet._status['last_result'] = 'success'
+            except Exception as e:
+                DataRefreshViewSet._status['last_result'] = f'error: {e}'
+            finally:
+                DataRefreshViewSet._status['running'] = False
+                DataRefreshViewSet._status['last_run'] = datetime.now().isoformat()
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+        return Response({
+            'status': 'started',
+            'message': 'News refresh running in background',
+        }, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=['get'])
+    def status(self, request):
+        """
+        GET /api/v2/data/status/
+        Returns current refresh state and last run timestamp.
+        """
+        return Response(DataRefreshViewSet._status)
