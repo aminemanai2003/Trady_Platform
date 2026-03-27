@@ -21,6 +21,16 @@
 
 **FX Alpha Platform** is a production-grade forex trading intelligence system developed by **Team DATAMINDS**. It uses a layered architecture following the **TDSP (Team Data Science Process)** methodology with three specialized AI agents orchestrated by a meta-coordinator.
 
+### Website Experience
+
+The current frontend website is fully in English and includes:
+
+- An animated landing page (`/`) with ReactBits LightPillar and SplashCursor effects
+- Authentication pages (`/login`, `/register`)
+- Dashboard modules for trading, analytics, monitoring, reports, agents, and settings
+
+The UI is designed to reflect the DATAMINDS product identity while consuming live backend APIs.
+
 ### Key Principles
 
 - **Deterministic decisions** — All trading signals use rule-based logic (fast, reproducible, auditable)
