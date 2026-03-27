@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "signals",
     "agents",
     "analytics",
+    "scheduling",
 ]
 
 MIDDLEWARE = [

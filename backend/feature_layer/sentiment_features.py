@@ -13,6 +13,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional
 import json
+import time
+import os
 from core.llm_factory import LLMFactory
 from langchain_core.prompts import PromptTemplate
 
@@ -23,6 +25,7 @@ class SentimentFeatureEngine:
     def __init__(self):
         self._embeddings = None
         self._llm = None
+        self.enable_llm_sentiment = os.getenv("ENABLE_LLM_SENTIMENT", "false").lower() == "true"
         
         # Strict JSON-only prompt
         self.sentiment_prompt = PromptTemplate(
@@ -71,6 +74,10 @@ JSON:"""
         All aggregation is deterministic Python.
         """
         results = []
+        start_ts = time.monotonic()
+        llm_budget_seconds = 8.0
+        llm_budget_items = 6
+        llm_used = 0
         
         for idx, row in news_df.iterrows():
             # Fast path: use pre-computed sentiment score from database
@@ -84,12 +91,19 @@ JSON:"""
                     'explained': row.get('title', 'Pre-analyzed article')
                 })
             else:
-                # Slow path: LLM classification (only for unscored articles)
-                sentiment_data = self._classify_single_article(
-                    row['title'],
-                    row.get('content', ''),
-                    currencies
-                )
+                # Slow path budget: fallback to deterministic heuristic when LLM budget is exhausted.
+                if (not self.enable_llm_sentiment) or llm_used >= llm_budget_items or (time.monotonic() - start_ts) > llm_budget_seconds:
+                    sentiment_data = self._classify_single_article_fast(
+                        row['title'],
+                        row.get('content', '')
+                    )
+                else:
+                    sentiment_data = self._classify_single_article(
+                        row['title'],
+                        row.get('content', ''),
+                        currencies
+                    )
+                    llm_used += 1
                 results.append({
                     'news_id': row['id'],
                     'timestamp': row['timestamp'],
@@ -99,6 +113,39 @@ JSON:"""
                 })
         
         return pd.DataFrame(results)
+
+    def _classify_single_article_fast(self, title: str, content: str) -> Dict:
+        """Deterministic heuristic sentiment fallback for latency-sensitive paths."""
+        text = f"{title} {content}".lower()
+
+        bullish_terms = [
+            "hawkish", "rate hike", "beats", "strong", "growth", "surge", "higher",
+            "bullish", "inflation up", "tightening", "resilient"
+        ]
+        bearish_terms = [
+            "dovish", "rate cut", "misses", "weak", "recession", "drop", "lower",
+            "bearish", "inflation down", "easing", "contraction"
+        ]
+
+        bull_score = sum(1 for t in bullish_terms if t in text)
+        bear_score = sum(1 for t in bearish_terms if t in text)
+
+        raw = bull_score - bear_score
+        sentiment = max(min(raw / 4.0, 1.0), -1.0)
+        relevance = 0.6 if (bull_score + bear_score) > 0 else 0.3
+
+        if sentiment > 0.2:
+            explained = "Heuristic bullish classification"
+        elif sentiment < -0.2:
+            explained = "Heuristic bearish classification"
+        else:
+            explained = "Heuristic neutral classification"
+
+        return {
+            'sentiment': float(sentiment),
+            'relevance': float(relevance),
+            'explained': explained,
+        }
     
     def _classify_single_article(
         self,

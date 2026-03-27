@@ -27,6 +27,7 @@ ta>=0.11.0  # Technical analysis
 # Async & Task Queue
 celery>=5.3
 celery[redis]>=5.3
+apscheduler>=3.10.0  # Background task scheduling
 
 # Utils
 python-dotenv>=1.0

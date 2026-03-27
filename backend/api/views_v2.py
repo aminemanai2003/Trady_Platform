@@ -11,6 +11,7 @@ from signal_layer.coordinator_agent_v2 import CoordinatorAgentV2
 from monitoring.performance_tracker import PerformanceTracker
 from monitoring.drift_detector import DriftDetector
 from monitoring.safety_monitor import SafetyMonitor
+from data_layer.news_loader import NewsLoader
 
 
 class TradingSignalV2ViewSet(viewsets.ViewSet):
@@ -24,6 +25,7 @@ class TradingSignalV2ViewSet(viewsets.ViewSet):
         super().__init__(**kwargs)
         self.coordinator = CoordinatorAgentV2()
         self.safety_monitor = SafetyMonitor()
+        self.news_loader = NewsLoader()
     
     @action(detail=False, methods=['post'])
     def generate_signal(self, request):
@@ -150,7 +152,7 @@ class TradingSignalV2ViewSet(viewsets.ViewSet):
                     'data_timestamps': {
                         'ohlcv': datetime.now().isoformat(),
                         'macro': datetime.now().isoformat(),
-                        'news': datetime.now().isoformat()
+                        'news': (self.news_loader.latest_timestamp() or datetime.now()).isoformat()
                     }
                 }
             })
@@ -172,6 +174,22 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         self.perf_tracker = PerformanceTracker()
         self.drift_detector = DriftDetector()
         self.safety_monitor = SafetyMonitor()
+        self.news_loader = NewsLoader()
+
+    @action(detail=False, methods=['get'])
+    def freshness_health(self, request):
+        """
+        News freshness health metrics.
+
+        GET /api/v2/monitoring/freshness_health/
+        """
+        target_minutes = int(request.query_params.get('target_minutes', 240))
+        freshness = self.news_loader.get_freshness_health(freshness_target_minutes=target_minutes)
+
+        return Response({
+            'timestamp': datetime.now().isoformat(),
+            'freshness': freshness,
+        })
     
     @action(detail=False, methods=['get'])
     def agent_performance(self, request):
@@ -259,6 +277,7 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         
         drift_data = self.drift_detector.get_drift_summary()
         drift_timestamp = drift_data.get('timestamp', datetime.now().isoformat())
+        freshness = self.news_loader.get_freshness_health()
         
         return Response({
             'status': 'operational',
@@ -276,6 +295,13 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
                 'safety_monitor': {
                     'status': 'active',
                     'cooldown_active': circuit_breaker.get('triggered', False)
+                },
+                'news_freshness': {
+                    'status': freshness.get('status', 'WARN'),
+                    'age_minutes': freshness.get('age_minutes'),
+                    'articles_last_1h': freshness.get('articles_last_1h', 0),
+                    'articles_last_24h': freshness.get('articles_last_24h', 0),
+                    'freshness_score': freshness.get('freshness_score', 0.0)
                 }
             },
             'system': {

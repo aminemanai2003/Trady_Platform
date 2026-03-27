@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import psycopg2
 from datetime import datetime, timedelta
 import os
+import json
 from dotenv import load_dotenv
 import time
 import feedparser
@@ -213,24 +214,62 @@ def write_articles_to_postgres(articles):
     duplicates = 0
     
     try:
+        # Detect the currency column used by current schema
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'news_articles'
+              AND column_name IN ('mentioned_currencies', 'currencies')
+            """
+        )
+        columns = {row[0] for row in cursor.fetchall()}
+        currency_column = 'mentioned_currencies' if 'mentioned_currencies' in columns else 'currencies'
+
+        if currency_column == 'mentioned_currencies':
+            insert_sql = """
+                INSERT INTO news_articles (url, title, content, source, published_at, mentioned_currencies, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
+                ON CONFLICT (url) DO NOTHING
+            """
+        else:
+            insert_sql = """
+                INSERT INTO news_articles (url, title, content, source, published_at, currencies, scraped_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (url) DO NOTHING
+            """
+
         for article in articles:
             try:
-                cursor.execute(
-                    """
-                    INSERT INTO news_articles (url, title, content, source, published_at, currencies, scraped_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (url) DO NOTHING
-                    """,
-                    (
-                        article['url'],
-                        article['title'],
-                        article['content'],
-                        article['source'],
-                        article['published_at'],
-                        article['currencies'],
-                        article['scraped_at']
+                cursor.execute("SAVEPOINT article_sp")
+
+                if currency_column == 'mentioned_currencies':
+                    cursor.execute(
+                        insert_sql,
+                        (
+                            article['url'],
+                            article['title'],
+                            article['content'],
+                            article['source'],
+                            article['published_at'],
+                            json.dumps(article['currencies']),
+                        )
                     )
-                )
+                else:
+                    cursor.execute(
+                        insert_sql,
+                        (
+                            article['url'],
+                            article['title'],
+                            article['content'],
+                            article['source'],
+                            article['published_at'],
+                            article['currencies'],
+                            article['scraped_at']
+                        )
+                    )
+
+                cursor.execute("RELEASE SAVEPOINT article_sp")
                 
                 if cursor.rowcount > 0:
                     inserted += 1
@@ -238,6 +277,7 @@ def write_articles_to_postgres(articles):
                     duplicates += 1
                     
             except Exception as e:
+                cursor.execute("ROLLBACK TO SAVEPOINT article_sp")
                 print(f"   ⚠️  Error inserting article: {e}")
         
         conn.commit()
