@@ -61,11 +61,11 @@ fx-alpha-platform/
 
 ## 👥 Équipe DATAMINDS
 
-- **Ines Chtioui** - Team Lead
-- **Amine Manai** - AI/ML Engineer
-- **Maha Aloui** - Data Engineer
-- **Malek Chairat** - Backend Developer
-- **Mariem Fersi** - Frontend Developer
+- **Ines Chtioui** - Project Lead
+- **Amine Manai** - Project Manager
+- **Mariem Fersi** - Solution Architect
+- **Malek Chairat** - Data Scientist
+- **Maha Aloui** - Data Scientist
 
 ## 🔗 Repository
 

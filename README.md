@@ -298,47 +298,11 @@ GET  /api/data/technical-indicators/ # Technical indicators (real feature engine
 
 ## Team DATAMINDS
 
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://github.com/INESCHTI">
-        <img src="https://github.com/INESCHTI.png" width="100px;" alt="Ines Chtioui"/>
-        <br />
-        <sub><b>Ines Chtioui</b></sub>
-      </a>
-      <br />
-      <sub>Project Admin</sub>
-    </td>
-    <td align="center">
-      <img src="https://via.placeholder.com/100" width="100px;" alt="Amine Manai"/>
-      <br />
-      <sub><b>Amine Manai</b></sub>
-      <br />
-      <sub>Backend Lead</sub>
-    </td>
-    <td align="center">
-      <img src="https://via.placeholder.com/100" width="100px;" alt="Maha Aloui"/>
-      <br />
-      <sub><b>Maha Aloui</b></sub>
-      <br />
-      <sub>Data Scientist</sub>
-    </td>
-    <td align="center">
-      <img src="https://via.placeholder.com/100" width="100px;" alt="Malek Chairat"/>
-      <br />
-      <sub><b>Malek Chairat</b></sub>
-      <br />
-      <sub>ML Engineer</sub>
-    </td>
-    <td align="center">
-      <img src="https://via.placeholder.com/100" width="100px;" alt="Mariem Fersi"/>
-      <br />
-      <sub><b>Mariem Fersi</b></sub>
-      <br />
-      <sub>Frontend Developer</sub>
-    </td>
-  </tr>
-</table>
+- Ines Chtioui - Project Lead
+- Amine Manai - Project Manager
+- Mariem Fersi - Solution Architect
+- Malek Chairat - Data Scientist
+- Maha Aloui - Data Scientist
 
 ---
 
