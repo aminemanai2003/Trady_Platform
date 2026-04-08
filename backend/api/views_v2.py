@@ -6,12 +6,15 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from datetime import datetime
+from time import perf_counter
 
 from signal_layer.coordinator_agent_v2 import CoordinatorAgentV2
 from monitoring.performance_tracker import PerformanceTracker
 from monitoring.drift_detector import DriftDetector
 from monitoring.safety_monitor import SafetyMonitor
 from data_layer.news_loader import NewsLoader
+from data_layer.macro_loader import MacroDataLoader
+from data_layer.timeseries_loader import TimeSeriesLoader
 
 
 class TradingSignalV2ViewSet(viewsets.ViewSet):
@@ -175,16 +178,135 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         self.drift_detector = DriftDetector()
         self.safety_monitor = SafetyMonitor()
         self.news_loader = NewsLoader()
+        self.macro_loader = MacroDataLoader()
+        self.timeseries_loader = TimeSeriesLoader()
+
+    @staticmethod
+    def _generic_freshness(last_ts, target_minutes: int, extraction_transfer_minutes: float = 0.0):
+        if last_ts is None:
+            return {
+                'status': 'NO_DATA',
+                'last_timestamp': None,
+                'age_minutes': None,
+                'latency': {
+                    'source_access_lag_minutes': None,
+                    'extraction_transfer_minutes': round(max(extraction_transfer_minutes, 0.0), 3),
+                    'total_latency_minutes': None,
+                },
+                'freshness_score': 0.0,
+                'target_max_age_minutes': target_minutes,
+            }
+
+        ts = last_ts.replace(tzinfo=None)
+        age_minutes = max((datetime.now() - ts).total_seconds() / 60.0, 0.0)
+        age_score = max(0.0, 1.0 - (age_minutes / max(float(target_minutes), 1.0)))
+        freshness_score = round(age_score * 100.0, 1)
+
+        return {
+            'status': 'PASS' if age_minutes <= target_minutes else 'WARN',
+            'last_timestamp': ts.isoformat(),
+            'age_minutes': round(age_minutes, 1),
+            'latency': {
+                'source_access_lag_minutes': round(age_minutes, 3),
+                'extraction_transfer_minutes': round(max(extraction_transfer_minutes, 0.0), 3),
+                'total_latency_minutes': round(age_minutes + max(extraction_transfer_minutes, 0.0), 3),
+            },
+            'freshness_score': freshness_score,
+            'target_max_age_minutes': target_minutes,
+        }
+
+    def _build_freshness_snapshot(self, request):
+        news_target = int(request.query_params.get('news_target_minutes', request.query_params.get('target_minutes', 240)))
+        ohlcv_target = int(request.query_params.get('ohlcv_target_minutes', 240))
+        macro_target = int(request.query_params.get('macro_target_minutes', 10080))
+
+        t0 = perf_counter()
+        news_freshness = self.news_loader.get_freshness_health(freshness_target_minutes=news_target)
+        news_query_minutes = (perf_counter() - t0) / 60.0
+        news_pipeline_delay = self.news_loader.latest_transfer_delay_minutes()
+        news_total_transfer = news_pipeline_delay + news_query_minutes
+
+        news_age = news_freshness.get('age_minutes')
+        news_freshness['latency'] = {
+            'source_access_lag_minutes': round(news_age, 3) if news_age is not None else None,
+            'extraction_transfer_minutes': round(max(news_total_transfer, 0.0), 3),
+            'total_latency_minutes': round(news_age + max(news_total_transfer, 0.0), 3) if news_age is not None else None,
+        }
+
+        t1 = perf_counter()
+        macro_last_ts = self.macro_loader.latest_timestamp()
+        macro_query_minutes = (perf_counter() - t1) / 60.0
+        macro_freshness = self._generic_freshness(
+            macro_last_ts,
+            macro_target,
+            extraction_transfer_minutes=macro_query_minutes,
+        )
+
+        t2 = perf_counter()
+        ohlcv_last_ts = self.timeseries_loader.latest_timestamp(timeframe='1h')
+        ohlcv_query_minutes = (perf_counter() - t2) / 60.0
+        ohlcv_freshness = self._generic_freshness(
+            ohlcv_last_ts,
+            ohlcv_target,
+            extraction_transfer_minutes=ohlcv_query_minutes,
+        )
+
+        data_types = {
+            'news': news_freshness,
+            'macro': macro_freshness,
+            'ohlcv': ohlcv_freshness,
+        }
+
+        statuses = [item.get('status', 'NO_DATA') for item in data_types.values()]
+        if any(s == 'WARN' for s in statuses):
+            overall_status = 'WARN'
+        elif all(s == 'NO_DATA' for s in statuses):
+            overall_status = 'NO_DATA'
+        elif any(s == 'PASS' for s in statuses):
+            overall_status = 'PASS'
+        else:
+            overall_status = 'NO_DATA'
+
+        overall_score = round(
+            sum(float(item.get('freshness_score', 0.0)) for item in data_types.values()) / max(len(data_types), 1),
+            1,
+        )
+
+        recommended_actions = []
+        for data_type, payload in data_types.items():
+            state = payload.get('status', 'NO_DATA')
+            if state == 'PASS':
+                continue
+
+            if data_type == 'news':
+                action = 'Trigger news refresh via /api/v2/data/refresh_news/'
+            elif data_type == 'macro':
+                action = 'Run macro ingestion (FRED) to update macro indicators'
+            else:
+                action = 'Run MT5 ingestion to refresh OHLCV candles'
+
+            recommended_actions.append({
+                'data_type': data_type,
+                'severity': 'high' if state == 'NO_DATA' else 'medium',
+                'reason': 'No recent data available' if state == 'NO_DATA' else 'Data is older than freshness target',
+                'action': action,
+            })
+
+        return {
+            'status': overall_status,
+            'freshness_score': overall_score,
+            'data_types': data_types,
+            'recommended_actions': recommended_actions,
+        }
 
     @action(detail=False, methods=['get'])
     def freshness_health(self, request):
         """
-        News freshness health metrics.
+        Freshness health metrics for all data types (news, macro, OHLCV).
 
         GET /api/v2/monitoring/freshness_health/
         """
-        target_minutes = int(request.query_params.get('target_minutes', 240))
-        freshness = self.news_loader.get_freshness_health(freshness_target_minutes=target_minutes)
+        freshness = self._build_freshness_snapshot(request)
 
         return Response({
             'timestamp': datetime.now().isoformat(),
@@ -277,7 +399,8 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         
         drift_data = self.drift_detector.get_drift_summary()
         drift_timestamp = drift_data.get('timestamp', datetime.now().isoformat())
-        freshness = self.news_loader.get_freshness_health()
+        freshness = self._build_freshness_snapshot(request)
+        news_freshness = freshness.get('data_types', {}).get('news', {})
         
         return Response({
             'status': 'operational',
@@ -296,12 +419,13 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
                     'status': 'active',
                     'cooldown_active': circuit_breaker.get('triggered', False)
                 },
+                'data_freshness': freshness,
                 'news_freshness': {
-                    'status': freshness.get('status', 'WARN'),
-                    'age_minutes': freshness.get('age_minutes'),
-                    'articles_last_1h': freshness.get('articles_last_1h', 0),
-                    'articles_last_24h': freshness.get('articles_last_24h', 0),
-                    'freshness_score': freshness.get('freshness_score', 0.0)
+                    'status': news_freshness.get('status', 'WARN'),
+                    'age_minutes': news_freshness.get('age_minutes'),
+                    'articles_last_1h': news_freshness.get('articles_last_1h', 0),
+                    'articles_last_24h': news_freshness.get('articles_last_24h', 0),
+                    'freshness_score': news_freshness.get('freshness_score', 0.0)
                 }
             },
             'system': {

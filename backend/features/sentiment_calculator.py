@@ -8,8 +8,7 @@ from typing import Dict, List
 from datetime import datetime, timedelta
 import re
 
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
+from langchain_core.prompts import PromptTemplate
 
 from core.database import DatabaseManager
 from core.llm_factory import LLMFactory
@@ -44,7 +43,7 @@ Confidence: [0.0-1.0]
     
     def __init__(self):
         self.llm = LLMFactory.get_llm()
-        self.sentiment_chain = LLMChain(llm=self.llm, prompt=self.SENTIMENT_PROMPT)
+        self.sentiment_chain = self.SENTIMENT_PROMPT | self.llm
     
     def calculate_all(self, start_time: str, end_time: str) -> Dict:
         """Calculate sentiment features for time period"""
@@ -113,10 +112,11 @@ Confidence: [0.0-1.0]
             
             try:
                 # Get LLM response
-                response = self.sentiment_chain.run(
-                    title=row['title'],
-                    content=content
-                )
+                result = self.sentiment_chain.invoke({
+                    "title": row['title'],
+                    "content": content,
+                })
+                response = result.content if hasattr(result, "content") else str(result)
                 
                 # Parse response
                 sentiment, confidence = self._parse_sentiment_response(response)

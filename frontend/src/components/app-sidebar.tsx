@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -21,23 +22,23 @@ import {
     BarChart3,
     FileText,
     Activity,
-    TrendingUp,
     CandlestickChart,
     Monitor,
     Settings,
     LogOut,
-    User,
+    GraduationCap,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navItems = [
-    { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { title: "Trading", href: "/trading", icon: CandlestickChart },
-    { title: "Agent Monitor", href: "/agents", icon: Bot },
-    { title: "Analytics", href: "/analytics", icon: BarChart3 },
-    { title: "Reports", href: "/reports", icon: FileText },
-    { title: "Monitoring", href: "/monitoring", icon: Monitor },
-    { title: "Settings", href: "/settings", icon: Settings },
+    { title: "Dashboard",       href: "/dashboard",        icon: LayoutDashboard },
+    { title: "Trading",         href: "/trading",          icon: CandlestickChart },
+    { title: "Agent Monitor",   href: "/agents",           icon: Bot },
+    { title: "Analytics",       href: "/analytics",        icon: BarChart3 },
+    { title: "Reports",         href: "/reports",          icon: FileText },
+    { title: "Strategy Tutor",  href: "/strategy-tutor",   icon: GraduationCap },
+    { title: "Monitoring",      href: "/monitoring",       icon: Monitor },
+    { title: "Settings",        href: "/settings",         icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -53,6 +54,11 @@ export function AppSidebar() {
               .slice(0, 2)
         : session?.user?.email?.charAt(0).toUpperCase() || "U";
 
+    async function handleLogout() {
+        await fetch("/api/django-auth/logout", { method: "POST" });
+        await signOut({ callbackUrl: "/login" });
+    }
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -60,7 +66,7 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
                             <Link href="/">
-                                <img src="/logo.png" alt="Trady" className="flex aspect-square h-8 w-auto" />
+                                <Image src="/logo.png" alt="Trady" width={32} height={32} className="flex aspect-square h-8 w-auto" />
                                 <div className="grid flex-1 text-left text-sm leading-tight">
                                     <span className="truncate font-bold">Trady</span>
                                     <span className="truncate text-xs text-muted-foreground">
@@ -118,7 +124,7 @@ export function AppSidebar() {
                     </SidebarMenuItem>
                     <SidebarMenuItem>
                         <SidebarMenuButton
-                            onClick={() => signOut({ callbackUrl: "/login" })}
+                            onClick={() => void handleLogout()}
                             className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
                         >
                             <LogOut className="size-4" />

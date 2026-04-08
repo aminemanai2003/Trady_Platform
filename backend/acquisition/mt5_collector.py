@@ -41,10 +41,18 @@ def connect_mt5():
     if not mt5.initialize():
         print(f"❌ MT5 initialize failed: {mt5.last_error()}")
         return False
-    
-    if not mt5.login(MT5_LOGIN, MT5_PASSWORD, MT5_SERVER):
-        print(f"❌ MT5 login failed: {mt5.last_error()}")
-        return False
+
+    # If no explicit credentials are provided, reuse the already-authenticated MT5 terminal session.
+    if MT5_LOGIN and MT5_PASSWORD and MT5_SERVER:
+        if not mt5.login(MT5_LOGIN, MT5_PASSWORD, MT5_SERVER):
+            print(f"❌ MT5 login failed: {mt5.last_error()}")
+            return False
+    else:
+        account = mt5.account_info()
+        if account is None:
+            print("❌ MT5 is initialized but no authenticated account is available")
+            return False
+        print("ℹ️  Using active MT5 terminal session (no .env credentials provided)")
     
     print(f"✅ Connected to MT5: {MT5_SERVER}")
     print(f"   Account: {mt5.account_info().login}")

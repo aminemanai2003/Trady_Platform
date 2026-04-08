@@ -96,6 +96,56 @@ class NewsLoader:
         except Exception:
             return None
 
+    def latest_transfer_delay_minutes(self) -> float:
+        """
+        Estimate ingestion transfer delay for the latest news article.
+
+        Transfer delay is approximated as:
+            max(ingested_at - published_at, 0)
+
+        where ingested_at uses the first available column among
+        updated_at, created_at, scraped_at.
+        """
+        try:
+            with DatabaseManager.get_postgres_connection() as conn:
+                col_query = """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'news_articles'
+                  AND column_name IN ('updated_at', 'created_at', 'scraped_at')
+                """
+                cols_df = pd.read_sql(col_query, conn)
+                available = set(cols_df['column_name'].tolist()) if not cols_df.empty else set()
+
+                ingestion_col = None
+                for candidate in ('updated_at', 'created_at', 'scraped_at'):
+                    if candidate in available:
+                        ingestion_col = candidate
+                        break
+
+                if ingestion_col is None:
+                    return 0.0
+
+                delay_query = f"""
+                SELECT published_at, {ingestion_col} AS ingested_at
+                FROM news_articles
+                WHERE published_at IS NOT NULL
+                  AND {ingestion_col} IS NOT NULL
+                ORDER BY published_at DESC
+                LIMIT 1
+                """
+                df = pd.read_sql(delay_query, conn)
+
+            if df.empty:
+                return 0.0
+
+            published_at = pd.to_datetime(df.loc[0, 'published_at']).to_pydatetime().replace(tzinfo=None)
+            ingested_at = pd.to_datetime(df.loc[0, 'ingested_at']).to_pydatetime().replace(tzinfo=None)
+            delay_minutes = max((ingested_at - published_at).total_seconds() / 60.0, 0.0)
+            return round(delay_minutes, 2)
+        except Exception:
+            return 0.0
+
     def get_freshness_health(self, freshness_target_minutes: int = 240) -> dict:
         """
         Compute freshness KPIs for news ingestion.

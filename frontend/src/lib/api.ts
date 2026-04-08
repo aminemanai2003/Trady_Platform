@@ -8,6 +8,7 @@ import type {
     EconomicEvent,
     DailyPerformance,
     FreshnessHealthV2,
+    ReportSummaryResponse,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -59,6 +60,12 @@ export const api = {
     performance: () =>
         fetcher<DailyPerformance[]>("/analytics/performance/"),
 
+    reportsSummary: (pair = "all", days = 90) =>
+        fetcher<ReportSummaryResponse>(`/analytics/reports/summary/?pair=${encodeURIComponent(pair)}&days=${days}`),
+
+    reportsExportUrl: (pair = "all", days = 90) =>
+        `${API_BASE}/analytics/reports/export/?pair=${encodeURIComponent(pair)}&days=${days}`,
+
     technicals: (pair: string) =>
         fetcher<TechnicalAnalysis>(`/technicals/${pair}/`),
 
@@ -103,7 +110,7 @@ export const api = {
                         ? ` (${backendMessage})`
                         : "";
                     throw new ApiRequestError(
-                        `La generation du signal a echoue (HTTP ${response.status})${detail}.`,
+                        `Signal generation failed (HTTP ${response.status})${detail}.`,
                         response.status
                     );
                 }
@@ -116,12 +123,13 @@ export const api = {
 
                 if (error instanceof DOMException && error.name === "AbortError") {
                     throw new ApiRequestError(
-                        "Le calcul du signal prend trop de temps (timeout 3 minutes). Reessayez.",
+                        "Signal generation took too long (3-minute timeout). Please try again.",
                     );
                 }
 
+                const details = error instanceof Error ? ` (${error.message})` : "";
                 throw new ApiRequestError(
-                    "Login au backend impossible. Verifiez que l'API Django tourne sur le port 8000.",
+                    `Unable to connect to the backend. Make sure the Django API is running on port 8000 and CORS is configured.${details}`,
                 );
             }
         },

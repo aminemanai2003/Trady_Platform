@@ -2,12 +2,11 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { Cpu, TrendingUp, Globe2, MessageSquare, Clock, CheckCircle2 } from "lucide-react";
-import { AuroraBackground, FadeInUp, StaggerContainer, StaggerItem, AnimatedProgressBar, ShimmerCard, FloatingCard } from "@/components/animations";
+import { FadeInUp, StaggerContainer, StaggerItem, AnimatedProgressBar, FloatingCard } from "@/components/animations";
 
 const CATEGORIES = [
     {
@@ -85,22 +84,17 @@ const colorMap: Record<string,string> = {
     violet:"#8b5cf6", blue:"#3b82f6", emerald:"#10b981", amber:"#f59e0b"
 };
 
+type FeatureColor = "violet" | "blue" | "emerald" | "amber";
+
 export default function FeaturesPage() {
     const [active, setActive] = useState("technical");
     const cat = CATEGORIES.find(c => c.id === active)!;
 
     return (
-        <div className="flex flex-col h-full bg-[#080d18] text-slate-100 relative overflow-hidden">
-            <AuroraBackground />
-            <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-black/30 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1 text-slate-400" />
-                <Separator orientation="vertical" className="h-5 bg-white/10" />
-                <Cpu className="size-4 text-violet-400" />
-                <h1 className="text-sm font-bold text-white">Feature Lab - Feature Engineering</h1>
-                <span className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5">DSO1.2</span>
-            </header>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader title="Feature Lab" subtitle="Feature Engineering - DSO1.2" />
 
-            <div className="relative z-10 flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
                 {/* Stats row */}
                 <FadeInUp>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -152,7 +146,7 @@ export default function FeaturesPage() {
                                                     <span className={`text-xs font-bold text-${cat.color}-400`}>{f.imp}/100</span>
                                                 </div>
                                                 <p className="text-[11px] text-slate-500 mb-1.5">{f.desc}</p>
-                                                <AnimatedProgressBar value={f.imp} color={cat.color as any} height={3}/>
+                                                <AnimatedProgressBar value={f.imp} color={cat.color as FeatureColor} height={3}/>
                                             </div>
                                         </StaggerItem>
                                     ))}
@@ -194,7 +188,7 @@ export default function FeaturesPage() {
                         </FloatingCard>
                     </div>
                 </div>
-            </div>
+            </RBContent>
         </div>
     );
 }

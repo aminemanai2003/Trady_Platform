@@ -16,6 +16,11 @@ import Link from "next/link";
 export function UserNav() {
     const { data: session } = useSession();
 
+    async function handleLogout() {
+        await fetch("/api/django-auth/logout", { method: "POST" });
+        await signOut({ callbackUrl: "/login" });
+    }
+
     if (!session?.user) {
         return null;
     }
@@ -71,7 +76,7 @@ export function UserNav() {
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-slate-700" />
                 <DropdownMenuItem
-                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    onClick={() => void handleLogout()}
                     className="cursor-pointer hover:bg-slate-800 text-rose-400 focus:text-rose-400"
                 >
                     <LogOut className="size-4 mr-2" />

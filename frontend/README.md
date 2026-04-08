@@ -118,3 +118,4 @@ Recommended startup order for local development:
 - This project uses App Router route groups for organization.
 - Keep all user-facing text in English for consistency.
 - Landing animation components are intentionally loaded only on the landing page.
+- ID verification uses a Gemini vision parser when `GEMINI_API_KEY` is available.

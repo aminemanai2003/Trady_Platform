@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     TrendingUp,
     Activity,
@@ -60,19 +59,13 @@ export default function DashboardPage() {
         : 0;
 
     return (
-        <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-            <header className="flex h-16 shrink-0 items-center gap-4 border-b bg-white/50 dark:bg-black/20 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1" />
-                <Separator orientation="vertical" className="h-6" />
-                <div>
-                    <h1 className="text-lg font-bold">FX Alpha Platform</h1>
-                    <p className="text-xs text-muted-foreground">
-                        Institutional Multi-Agent Trading System
-                    </p>
-                </div>
-            </header>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader
+                title="FX Alpha Platform"
+                subtitle="Institutional Multi-Agent Trading System"
+            />
 
-            <div className="flex-1 overflow-auto p-6 lg:p-8 space-y-6">
+            <RBContent className="space-y-6 lg:p-8">
                 {/* Hero Section */}
                 <Card className="border-2 border-violet-500/20 bg-gradient-to-br from-violet-500/5 to-transparent">
                     <CardContent className="p-8 lg:p-10">
@@ -365,7 +358,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
                 </div>
-            </div>
+            </RBContent>
         </div>
     );
 }

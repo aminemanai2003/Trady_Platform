@@ -140,6 +140,37 @@ export interface DailyPerformance {
     trades: number;
 }
 
+export interface ReportHistoryRow {
+    id: number;
+    agent_name: string;
+    pair: string;
+    direction: "BUY" | "SELL" | "NEUTRAL";
+    confidence: number;
+    outcome: "WIN" | "LOSS";
+    pnl: number;
+    time: string;
+}
+
+export interface ReportSummaryResponse {
+    kpis: {
+        total_pnl: number;
+        win_rate: number;
+        sharpe: number;
+        signals: number;
+        confluence: number;
+    };
+    curve: Array<{
+        date: string;
+        daily_pnl: number;
+        cumulative_pnl: number;
+        win_rate: number;
+        trades: number;
+    }>;
+    history: ReportHistoryRow[];
+    days: number;
+    pair: string;
+}
+
 // â”€â”€â”€ Trading â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export type OrderSide = "BUY" | "SELL";
 export type OrderType = "MARKET" | "LIMIT" | "STOP";
@@ -240,12 +271,53 @@ export interface FreshnessHealthV2 {
     timestamp: string;
     freshness: {
         status: "PASS" | "WARN" | "NO_DATA";
-        last_news_timestamp: string | null;
-        age_minutes: number | null;
-        articles_last_1h: number;
-        articles_last_24h: number;
         freshness_score: number;
-        target_max_age_minutes: number;
+        data_types: {
+            news: {
+                status: "PASS" | "WARN" | "NO_DATA";
+                last_news_timestamp: string | null;
+                age_minutes: number | null;
+                latency: {
+                    source_access_lag_minutes: number | null;
+                    extraction_transfer_minutes: number;
+                    total_latency_minutes: number | null;
+                };
+                articles_last_1h: number;
+                articles_last_24h: number;
+                freshness_score: number;
+                target_max_age_minutes: number;
+            };
+            macro: {
+                status: "PASS" | "WARN" | "NO_DATA";
+                last_timestamp: string | null;
+                age_minutes: number | null;
+                latency: {
+                    source_access_lag_minutes: number | null;
+                    extraction_transfer_minutes: number;
+                    total_latency_minutes: number | null;
+                };
+                freshness_score: number;
+                target_max_age_minutes: number;
+            };
+            ohlcv: {
+                status: "PASS" | "WARN" | "NO_DATA";
+                last_timestamp: string | null;
+                age_minutes: number | null;
+                latency: {
+                    source_access_lag_minutes: number | null;
+                    extraction_transfer_minutes: number;
+                    total_latency_minutes: number | null;
+                };
+                freshness_score: number;
+                target_max_age_minutes: number;
+            };
+        };
+        recommended_actions: Array<{
+            data_type: "news" | "macro" | "ohlcv";
+            severity: "medium" | "high";
+            reason: string;
+            action: string;
+        }>;
     };
 }
 

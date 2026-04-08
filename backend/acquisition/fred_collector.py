@@ -89,18 +89,31 @@ def write_to_postgres(df):
             (row['date'], row['series_id'], row['indicator_name'], row['value'])
             for _, row in df.iterrows()
         ]
-        
-        # Batch insert with ON CONFLICT UPDATE
-        execute_values(
-            cursor,
-            """
-            INSERT INTO economic_indicators (date, series_id, indicator_name, value)
-            VALUES %s
-            ON CONFLICT (date, series_id) DO UPDATE
-            SET value = EXCLUDED.value
-            """,
-            values
-        )
+
+        # Prefer current schema and gracefully fallback to legacy table.
+        try:
+            execute_values(
+                cursor,
+                """
+                INSERT INTO macro_indicators (date, series_id, indicator_name, value)
+                VALUES %s
+                ON CONFLICT (date, series_id) DO UPDATE
+                SET value = EXCLUDED.value
+                """,
+                values
+            )
+        except Exception:
+            conn.rollback()
+            execute_values(
+                cursor,
+                """
+                INSERT INTO economic_indicators (date, series_id, indicator_name, value)
+                VALUES %s
+                ON CONFLICT (date, series_id) DO UPDATE
+                SET value = EXCLUDED.value
+                """,
+                values
+            )
         
         conn.commit()
         print(f"✅ Wrote {len(values):,} records to PostgreSQL")

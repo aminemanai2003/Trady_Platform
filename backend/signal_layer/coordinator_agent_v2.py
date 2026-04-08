@@ -113,7 +113,7 @@ class CoordinatorAgentV2:
         regime = self._detect_market_regime(technical_signal, price_volatility)
         
         # Step 4: Weighted aggregation (PURE MATH)
-        final_signal, confidence = self._aggregate_signals(
+        final_signal, confidence, weighted_score = self._aggregate_signals(
             agent_signals,
             updated_weights,
             regime
@@ -144,6 +144,7 @@ class CoordinatorAgentV2:
         return {
             'final_signal': final_signal,
             'confidence': confidence,
+            'weighted_score': float(weighted_score),
             'agent_signals': agent_signals,
             'weights_used': updated_weights,
             'market_regime': regime,
@@ -256,7 +257,7 @@ class CoordinatorAgentV2:
         else:
             final_signal = 0
         
-        return final_signal, avg_confidence
+        return final_signal, avg_confidence, float(weighted_signal_sum)
     
     def _detect_conflicts(self, agent_signals: Dict) -> bool:
         """
@@ -415,16 +416,41 @@ class CoordinatorAgentV2:
         For now, return structured text
         """
         signal_names = {1: 'BUY', 0: 'NEUTRAL', -1: 'SELL'}
-        
-        explanation = f"Final Decision: {signal_names[final_signal]}\n\n"
-        
-        explanation += "Agent Breakdown:\n"
+        direction = signal_names[final_signal]
+
+        weighted_components = []
         for agent, data in agent_signals.items():
-            explanation += f"- {agent}: {signal_names[data['signal']]} "
-            explanation += f"(confidence: {data['confidence']:.2%}, weight: {weights[agent]:.2%})\n"
-            explanation += f"  Reason: {data['deterministic_reason']}\n"
-        
+            contribution = data['signal'] * data['confidence'] * weights[agent]
+            weighted_components.append((agent, contribution, data))
+
+        weighted_components.sort(key=lambda item: abs(item[1]), reverse=True)
+        top_agent, top_contribution, top_data = weighted_components[0]
+
+        lines = [
+            f"Final decision: {direction}.",
+            (
+                f"Primary driver: {top_agent} ({signal_names[top_data['signal']]}, "
+                f"contribution {top_contribution:+.3f})."
+            ),
+        ]
+
+        if final_signal == 0:
+            lines.append(
+                "Why neutral: bullish and bearish inputs are too balanced, so the system avoids a low-conviction trade."
+            )
+
+        lines.append("Agent details:")
+        for agent, contribution, data in weighted_components:
+            conf_pct = data['confidence'] * 100.0
+            weight_pct = weights[agent] * 100.0
+            lines.append(
+                f"- {agent}: {signal_names[data['signal']]} | confidence {conf_pct:.1f}% | "
+                f"weight {weight_pct:.1f}% | contribution {contribution:+.3f}"
+            )
+            reason = data.get('deterministic_reason') or data.get('reason') or 'No detailed reason available.'
+            lines.append(f"  {reason}")
+
         if conflicts:
-            explanation += "\n⚠️ Warning: Agents disagree - confidence reduced for safety.\n"
-        
-        return explanation
+            lines.append("Safety adjustment: agents disagree, confidence is reduced to prevent overtrading.")
+
+        return "\n".join(lines)

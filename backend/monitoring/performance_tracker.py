@@ -59,8 +59,10 @@ class PerformanceTracker:
                 'trade_count': int
             }
         """
-        start_date = datetime.now() - timedelta(days=days)
-        
+        windows = [days, 90, 365, 3650]
+        df = pd.DataFrame()
+        used_days = days
+
         with self.db.get_postgres_connection() as conn:
             query = """
             SELECT pnl, created_at, confidence, was_correct
@@ -69,7 +71,19 @@ class PerformanceTracker:
             AND created_at >= %s
             ORDER BY created_at
             """
-            df = pd.read_sql(query, conn, params=(agent_name, start_date))
+
+            for window_days in windows:
+                start_date = datetime.now() - timedelta(days=window_days)
+                candidate = pd.read_sql(query, conn, params=(agent_name, start_date))
+                if not candidate.empty and candidate['pnl'].notna().any():
+                    df = candidate
+                    used_days = window_days
+                    break
+
+            if df.empty:
+                # Keep latest sample even without outcomes to expose confidence/trade activity.
+                start_date = datetime.now() - timedelta(days=days)
+                df = pd.read_sql(query, conn, params=(agent_name, start_date))
         
         if df.empty:
             return {
@@ -79,6 +93,7 @@ class PerformanceTracker:
                 'max_drawdown': 0.0,
                 'trade_count': 0,
                 'avg_confidence': 0.0,
+                'period_days_used': days,
             }
         
         # Use pnl rows that are non-null for return stats
@@ -93,6 +108,7 @@ class PerformanceTracker:
                 'max_drawdown': 0.0,
                 'trade_count': len(df),
                 'avg_confidence': avg_conf,
+                'period_days_used': used_days,
             }
         
         # Calculate metrics from actual outcomes
@@ -109,8 +125,9 @@ class PerformanceTracker:
             'win_rate': float(win_rate),
             'avg_pnl': float(avg_pnl),
             'max_drawdown': float(max_dd),
-            'trade_count': len(df),
+            'trade_count': len(pnl_df),
             'avg_confidence': avg_conf,
+            'period_days_used': used_days,
         }
     
     @staticmethod

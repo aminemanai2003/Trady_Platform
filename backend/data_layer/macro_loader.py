@@ -13,6 +13,32 @@ class MacroDataLoader:
     
     def __init__(self):
         pass
+
+    def latest_timestamp(self, currencies: Optional[List[str]] = None) -> Optional[datetime]:
+        """Return the latest macro data timestamp from PostgreSQL."""
+        try:
+            with DatabaseManager.get_postgres_connection() as conn:
+                try:
+                    if currencies:
+                        query = """
+                        SELECT MAX(date) AS last_ts
+                        FROM macro_indicators
+                        WHERE currency = ANY(%s)
+                        """
+                        df = pd.read_sql(query, conn, params=(currencies,))
+                    else:
+                        query = "SELECT MAX(date) AS last_ts FROM macro_indicators"
+                        df = pd.read_sql(query, conn)
+                except Exception:
+                    # Legacy schema fallback
+                    query = "SELECT MAX(date) AS last_ts FROM economic_indicators"
+                    df = pd.read_sql(query, conn)
+
+            if df.empty or df.loc[0, 'last_ts'] is None:
+                return None
+            return pd.to_datetime(df.loc[0, 'last_ts']).to_pydatetime().replace(tzinfo=None)
+        except Exception:
+            return None
     
     def load_interest_rates(
         self,

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { useEffect, useState } from "react";
 import {
     Card,
     CardContent,
@@ -8,24 +9,20 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RBButton, RBContent, RBHeader, RBInput, RBLabel } from "@/components/reactbits";
+import FaceEnrollModal from "@/components/FaceEnrollModal";
 import {
+    Camera,
     Key,
+    Lock,
     Bot,
     Bell,
     Shield,
-    Database,
-    Globe,
-    Save,
     CheckCircle2,
     AlertTriangle,
-    Sliders,
-    Clock,
+    Loader2,
 } from "lucide-react";
-
 const apiKeys = [
     { name: "FRED API Key", key: "FRED_API_KEY", status: "configured", masked: "********3f2a" },
     { name: "MetaTrader 5", key: "MT5_LOGIN", status: "configured", masked: "******5421" },
@@ -53,21 +50,102 @@ const notificationSettings = [
 ];
 
 export default function SettingsPage() {
+    const [twoFaEnabled,    setTwoFaEnabled]    = useState(false);
+    const [twoFaMethod,     setTwoFaMethod]     = useState<"email" | "sms" | "face">("email");
+    const [phoneNumber,     setPhoneNumber]     = useState("");
+    const [showEnrollModal, setShowEnrollModal] = useState(false);
+    const [saving,          setSaving]          = useState(false);
+    const [saved,           setSaved]           = useState(false);
+    const [saveError,       setSaveError]       = useState("");
+
+    useEffect(() => {
+        let active = true;
+
+        async function load2FA() {
+            try {
+                const res = await fetch("/api/django-auth/2fa-setup", { cache: "no-store" });
+                const data = await res.json().catch(() => ({}));
+
+                if (!active) {
+                    return;
+                }
+
+                if (!res.ok) {
+                    setSaveError(data.message ?? "Unable to load current 2FA settings. Please sign in again if this persists.");
+                    return;
+                }
+
+                setSaveError("");
+                setTwoFaEnabled(Boolean(data.twofa_enabled));
+
+                if (data.preferred_method === "email" || data.preferred_method === "sms" || data.preferred_method === "face") {
+                    setTwoFaMethod(data.preferred_method);
+                }
+
+                setPhoneNumber(data.phone_number ?? "");
+            } catch {
+                if (active) {
+                    setSaveError("Unable to load current 2FA settings. Please try again shortly.");
+                }
+            }
+        }
+
+        void load2FA();
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    async function save2FA() {
+        if (twoFaEnabled && twoFaMethod === "sms" && !phoneNumber.trim()) {
+            setSaveError("Phone number is required for SMS 2FA.");
+            return;
+        }
+
+        setSaving(true);
+        setSaved(false);
+        setSaveError("");
+        try {
+            const res = await fetch("/api/django-auth/2fa-setup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    enabled: twoFaEnabled,
+                    preferred_method: twoFaMethod,
+                    phone_number: twoFaMethod === "sms" ? phoneNumber : "",
+                }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok || !data.success) {
+                setSaveError(data.message ?? "Unable to save security settings.");
+                return;
+            }
+
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+            setSaveError("");
+        } catch {
+            setSaveError("Network error. Security settings were not saved.");
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="flex flex-col h-full">
-            <header className="flex h-14 shrink-0 items-center gap-2 border-b px-6">
-                <SidebarTrigger className="-ml-1" />
-                <Separator orientation="vertical" className="mr-2 h-4" />
-                <h1 className="text-lg font-semibold">Settings</h1>
-            </header>
+            <RBHeader title="Settings" subtitle="Configuration and safety controls" />
 
-            <div className="flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
                 <Tabs defaultValue="api" className="space-y-4">
                     <TabsList className="bg-muted/50">
                         <TabsTrigger value="api">API Keys</TabsTrigger>
                         <TabsTrigger value="agents">Agent Config</TabsTrigger>
                         <TabsTrigger value="notifications">Notifications</TabsTrigger>
                         <TabsTrigger value="risk">Risk Management</TabsTrigger>
+                        <TabsTrigger value="security">Security</TabsTrigger>
                     </TabsList>
 
                     {/* API Keys Tab */}
@@ -210,8 +288,113 @@ export default function SettingsPage() {
                             </CardContent>
                         </Card>
                     </TabsContent>
+
+                    {/* Security Tab */}
+                    <TabsContent value="security" className="space-y-4">
+                        {/* 2FA Card */}
+                        <Card className="border-border/50 bg-card/80 backdrop-blur">
+                            <CardHeader>
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <Lock className="size-4" /> Two-Factor Authentication
+                                </CardTitle>
+                                <CardDescription>Add an extra layer of security at login</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-5">
+                                {/* Enable toggle */}
+                                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/30">
+                                    <div>
+                                        <div className="text-sm font-medium">Enable 2FA</div>
+                                        <div className="text-xs text-muted-foreground">Require a second factor every time you sign in</div>
+                                    </div>
+                                    <button
+                                        onClick={() => setTwoFaEnabled(v => !v)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${twoFaEnabled ? "bg-sky-600" : "bg-slate-700"}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${twoFaEnabled ? "translate-x-6" : "translate-x-1"}`} />
+                                    </button>
+                                </div>
+
+                                {/* Method selection */}
+                                {twoFaEnabled && (
+                                    <div className="space-y-3">
+                                        <RBLabel className="text-xs text-muted-foreground uppercase tracking-wider">Method</RBLabel>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            {(["email", "sms", "face"] as const).map((m) => (
+                                                <button
+                                                    key={m}
+                                                    onClick={() => setTwoFaMethod(m)}
+                                                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${twoFaMethod === m ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border/70"}`}
+                                                >
+                                                    {m === "email" ? "📧 Email OTP" : m === "sms" ? "📱 SMS OTP" : "🪪 Face ID"}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Phone number input for SMS */}
+                                        {twoFaMethod === "sms" && (
+                                            <div className="space-y-1.5">
+                                                <RBLabel htmlFor="phone" className="text-xs text-muted-foreground">Phone Number</RBLabel>
+                                                <RBInput
+                                                    id="phone"
+                                                    type="tel"
+                                                    placeholder="+1 555 000 0000"
+                                                    value={phoneNumber}
+                                                    onChange={e => setPhoneNumber(e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {saveError && (
+                                    <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-400">
+                                        {saveError}
+                                    </div>
+                                )}
+
+                                <RBButton onClick={save2FA} disabled={saving} size="sm" className="gap-2">
+                                    {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Shield className="size-3.5" />}
+                                    {saved ? "Saved!" : saving ? "Saving…" : "Save Settings"}
+                                </RBButton>
+                            </CardContent>
+                        </Card>
+
+                        {/* Face Enrollment Card */}
+                        <Card className="border-border/50 bg-card/80 backdrop-blur">
+                            <CardHeader>
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <Camera className="size-4" /> Face Recognition
+                                </CardTitle>
+                                <CardDescription>Register your face for biometric login</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30">
+                                    <Shield className="size-5 text-sky-400 shrink-0" />
+                                    <p className="text-xs text-muted-foreground">
+                                        Your face data is encrypted with AES-256 and stored securely. Liveness detection prevents photo spoofing.
+                                    </p>
+                                </div>
+                                <RBButton variant="secondary" size="sm" onClick={() => setShowEnrollModal(true)} className="gap-2">
+                                    <Camera className="size-3.5" /> Enroll Face
+                                </RBButton>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
                 </Tabs>
-            </div>
+            </RBContent>
+
+            {/* Face enroll modal */}
+            {showEnrollModal && (
+                <FaceEnrollModal
+                    onClose={() => setShowEnrollModal(false)}
+                    onEnrolled={() => {
+                        setShowEnrollModal(false);
+                        setTwoFaEnabled(true);
+                        setTwoFaMethod("face");
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -3,8 +3,6 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Progress } from "@/components/ui/progress";
 import {
     Bot, Brain, TrendingUp, Newspaper, Layers, Zap, Activity,
@@ -13,10 +11,11 @@ import {
 import { api } from "@/lib/api";
 import type { SignalResponseV2, HealthCheckV2, DriftDetectionV2 } from "@/types";
 import {
-    AuroraBackground, FadeInUp, StaggerContainer, StaggerItem,
+    FadeInUp, StaggerContainer, StaggerItem,
     SpotlightCard, GlowDot, AnimatedProgressBar, FloatingCard,
 } from "@/components/animations";
 import { FreshnessHealthCard } from "@/components/freshness-health-card";
+import { RBContent, RBHeader } from "@/components/reactbits";
 
 // Agent configs (DSO1.1 / DSO1.2 / DSO1.3)
 const AGENTS = {
@@ -86,54 +85,44 @@ function SignalLabContent() {
         : "bg-slate-500/15 text-slate-400 border-slate-500/30";
 
     return (
-        <div className="flex flex-col h-full bg-[#080d18] text-slate-100 relative overflow-hidden">
-            <AuroraBackground />
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader
+                title="Signal Lab"
+                subtitle="DSO1.1 - DSO1.2 - DSO1.3 - DSO2.1 - DSO3.1"
+                right={
+                    <>
+                        <div className="flex gap-1">
+                            {PAIRS.map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => setPair(p)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
+                                        pair === p
+                                            ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
+                                            : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                                    }`}
+                                >
+                                    {p.slice(0,3)}/{p.slice(3)}
+                                </button>
+                            ))}
+                        </div>
+                        <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={generateSignal}
+                            disabled={loading}
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 transition-all disabled:opacity-60"
+                        >
+                            {loading
+                                ? <><RefreshCw className="size-4 animate-spin" /> Analyzing...</>
+                                : <><Zap className="size-4" /> Generate Signal</>
+                            }
+                        </motion.button>
+                    </>
+                }
+            />
 
-            {/* Header */}
-            <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-black/30 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1 text-slate-400" />
-                <Separator orientation="vertical" className="h-5 bg-white/10" />
-                <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
-                        <Layers className="size-3.5 text-white" />
-                    </div>
-                    <div>
-                        <h1 className="text-sm font-bold text-white">Signal Lab</h1>
-                        <p className="text-[10px] text-slate-500">DSO1.1 - DSO1.2 - DSO1.3 - DSO2.1 - DSO3.1</p>
-                    </div>
-                </div>
-                <div className="ml-auto flex items-center gap-2">
-                    <div className="flex gap-1">
-                        {PAIRS.map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => setPair(p)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
-                                    pair === p
-                                        ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
-                                        : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
-                                }`}
-                            >
-                                {p.slice(0,3)}/{p.slice(3)}
-                            </button>
-                        ))}
-                    </div>
-                    <motion.button
-                        whileHover={{ scale: 1.03 }}
-                        whileTap={{ scale: 0.97 }}
-                        onClick={generateSignal}
-                        disabled={loading}
-                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 transition-all disabled:opacity-60"
-                    >
-                        {loading
-                            ? <><RefreshCw className="size-4 animate-spin" /> Analyzing...</>
-                            : <><Zap className="size-4" /> Generate Signal</>
-                        }
-                    </motion.button>
-                </div>
-            </header>
-
-            <div className="relative z-10 flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
 
                 {signalError && (
                     <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -157,7 +146,7 @@ function SignalLabContent() {
                                 { label: "Status", value: health.status.toUpperCase(), dot: "emerald" as const, sub: "System operational" },
                                 { label: "Uptime", value: `${Math.round(health.system.uptime_seconds/60)}m`, dot: "blue" as const, sub: "Since last restart" },
                                 { label: "Active agents", value: `${Object.keys(health.agent_performances).length}/3`, dot: "violet" as const, sub: "Macro - Tech - Sentiment" },
-                                { label: "Drift detected", value: (drift?.sentiment_drift?.detected || (drift as any)?.sentiment?.drift_detected) ? "YES" : "NO", dot: drift?.sentiment_drift?.detected ? "amber" as const : "emerald" as const, sub: "Distribution detection" },
+                                { label: "Drift detected", value: drift?.sentiment_drift?.detected ? "YES" : "NO", dot: drift?.sentiment_drift?.detected ? "amber" as const : "emerald" as const, sub: "Distribution detection" },
                             ].map((item, i) => (
                                 <motion.div key={i} initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} transition={{delay:i*0.06}}
                                     className="p-3 rounded-xl border border-white/5 bg-white/[0.03]">
@@ -353,7 +342,7 @@ function SignalLabContent() {
                         </div>
                     </FloatingCard>
                 )}
-            </div>
+            </RBContent>
         </div>
     );
 }

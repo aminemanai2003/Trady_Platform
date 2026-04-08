@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     BarChart, Bar, ReferenceLine,
 } from "recharts";
 import { ShieldCheck, AlertTriangle, Cpu, Activity, CheckCircle2, XCircle, Clock } from "lucide-react";
-import { AuroraBackground, FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter, AnimatedProgressBar, FloatingCard } from "@/components/animations";
+import { FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter, AnimatedProgressBar, FloatingCard } from "@/components/animations";
 
 // DSO4.1 - Data Validation
 const validationChecks = [
@@ -49,25 +48,23 @@ export default function MonitoringPage() {
     const [tab, setTab] = useState<"validation"|"mlflow">("validation");
 
     return (
-        <div className="flex flex-col h-full bg-[#080d18] text-slate-100 relative overflow-hidden">
-            <AuroraBackground />
-            <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-black/30 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1 text-slate-400" />
-                <Separator orientation="vertical" className="h-5 bg-white/10" />
-                <ShieldCheck className="size-4 text-rose-400" />
-                <h1 className="text-sm font-bold text-white">Monitoring & Validation</h1>
-                <span className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5">DSO4.1 - DSO4.2</span>
-                <div className="ml-auto flex gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/5">
-                    {[{id:"validation",l:"Data Validation (DSO4.1)"},{id:"mlflow",l:"MLflow Metrics (DSO4.2)"}].map(t=>(
-                        <button key={t.id} onClick={()=>setTab(t.id as any)}
-                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-rose-600 text-white":"text-slate-400 hover:text-white"}`}>
-                            {t.l}
-                        </button>
-                    ))}
-                </div>
-            </header>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader
+                title="Monitoring & Validation"
+                subtitle="DSO4.1 - DSO4.2"
+                right={
+                    <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.03] p-1">
+                        {[{id:"validation",l:"Data Validation (DSO4.1)"},{id:"mlflow",l:"MLflow Metrics (DSO4.2)"}].map(t=>(
+                            <button key={t.id} onClick={()=>setTab(t.id as "validation" | "mlflow")}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-rose-600 text-white":"text-slate-400 hover:text-white"}`}>
+                                {t.l}
+                            </button>
+                        ))}
+                    </div>
+                }
+            />
 
-            <div className="relative z-10 flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
 
                 {/* KPI row always visible */}
                 <FadeInUp>
@@ -193,7 +190,7 @@ export default function MonitoringPage() {
                         </div>
                     </FloatingCard>
                 </>}
-            </div>
+            </RBContent>
         </div>
     );
 }

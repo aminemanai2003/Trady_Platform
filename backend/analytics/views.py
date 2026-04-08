@@ -1,10 +1,12 @@
 """Analytics views — Real KPIs and performance metrics from database."""
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.http import HttpResponse
 from datetime import datetime, timedelta
 from django.conf import settings
 import psycopg2
 import numpy as np
+import csv
 
 
 def _get_pg_conn():
@@ -28,7 +30,7 @@ def kpis_view(request):
         cur.execute("SELECT COUNT(*) FROM trading_signals_log WHERE created_at > NOW() - INTERVAL '30 days'")
         total_signals = cur.fetchone()[0] or 0
 
-        # Win rate from actual trades
+        # Win rate and sharpe from actual agent outcomes.
         cur.execute("""
             SELECT 
                 COUNT(*) FILTER (WHERE pnl > 0) as wins,
@@ -36,7 +38,7 @@ def kpis_view(request):
                 COUNT(*) as total,
                 AVG(pnl) as avg_pnl,
                 STDDEV(pnl) as std_pnl
-            FROM trading_signals_log 
+            FROM agent_performance_log 
             WHERE pnl IS NOT NULL AND created_at > NOW() - INTERVAL '90 days'
         """)
         row = cur.fetchone()
@@ -50,9 +52,9 @@ def kpis_view(request):
         sharpe = (avg_pnl / std_pnl * np.sqrt(252)) if std_pnl > 0 else 1.5
         profit_factor = (wins * abs(avg_pnl)) / (losses * abs(avg_pnl) + 0.001) if losses > 0 else 1.5
 
-        # Agent consensus from recent signals
+        # Agent consensus from recent signals (agent_votes JSONB)
         cur.execute("""
-            SELECT signal_data FROM trading_signals_log 
+            SELECT agent_votes FROM trading_signals_log 
             WHERE created_at > NOW() - INTERVAL '7 days'
             ORDER BY created_at DESC LIMIT 50
         """)
@@ -60,7 +62,7 @@ def kpis_view(request):
         consensus_count = 0
         for (sd,) in signal_rows:
             if sd and isinstance(sd, dict):
-                votes = sd.get('agent_votes', {})
+                votes = sd
                 directions = [v.get('signal', '') for v in votes.values() if isinstance(v, dict)]
                 if len(set(directions)) <= 1 and directions:
                     consensus_count += 1
@@ -110,12 +112,28 @@ def performance_view(request):
                 SUM(COALESCE(pnl, 0)) as daily_pnl,
                 COUNT(*) as trades,
                 COUNT(*) FILTER (WHERE pnl > 0) as wins
-            FROM trading_signals_log
-            WHERE created_at > NOW() - INTERVAL '90 days'
+            FROM agent_performance_log
+            WHERE pnl IS NOT NULL
+            AND created_at > NOW() - INTERVAL '90 days'
             GROUP BY DATE(created_at)
             ORDER BY day
         """)
         rows = cur.fetchall()
+        if not rows:
+            cur.execute("""
+                SELECT 
+                    DATE(created_at) as day,
+                    SUM(COALESCE(pnl, 0)) as daily_pnl,
+                    COUNT(*) as trades,
+                    COUNT(*) FILTER (WHERE pnl > 0) as wins
+                FROM agent_performance_log
+                WHERE pnl IS NOT NULL
+                AND created_at > NOW() - INTERVAL '365 days'
+                GROUP BY DATE(created_at)
+                ORDER BY day
+            """)
+            rows = cur.fetchall()
+
         cur.close()
         conn.close()
 
@@ -128,18 +146,154 @@ def performance_view(request):
                 "date": day.strftime("%Y-%m-%d"),
                 "daily_pnl": round(dp, 2),
                 "cumulative_pnl": round(cumulative_pnl, 2),
-                "win_rate": round(wins / trades * 100, 1) if trades > 0 else 50,
-                "sharpe": round(dp / max(abs(dp), 1) * 1.5, 2),
-                "trades": trades,
+                "win_rate": round(wins / trades * 100, 1) if trades > 0 else 0.0,
+                "sharpe": round((dp / max(abs(dp), 1)) * 1.5, 2),
+                "trades": int(trades),
             })
 
         if not data:
-            # Return structured empty response
             data = _generate_baseline_performance()
 
         return Response(data)
     except Exception:
         return Response(_generate_baseline_performance())
+
+
+def _normalize_pair(raw_pair: str) -> str:
+    if not raw_pair or raw_pair.lower() == 'all':
+        return ''
+    return raw_pair.replace('/', '').replace('-', '').upper()
+
+
+@api_view(["GET"])
+def reports_summary_view(request):
+    """Dynamic reports payload for frontend reports page."""
+    pair = _normalize_pair(request.query_params.get('pair', 'all'))
+    days = int(request.query_params.get('days', 90))
+
+    try:
+        conn = _get_pg_conn()
+        cur = conn.cursor()
+
+        pair_clause = "AND pair = %s" if pair else ""
+        params = [days] + ([pair] if pair else [])
+        cur.execute(f"""
+            SELECT agent_name, pair, signal_direction, confidence, was_correct, pnl, created_at
+            FROM agent_performance_log
+            WHERE created_at > NOW() - (%s || ' days')::interval
+            AND pnl IS NOT NULL
+            {pair_clause}
+            ORDER BY created_at DESC
+            LIMIT 300
+        """, params)
+        rows = cur.fetchall()
+
+        curve_params = [days] + ([pair] if pair else [])
+        cur.execute(f"""
+            SELECT DATE(created_at) as day,
+                   SUM(COALESCE(pnl, 0)) as daily_pnl,
+                   COUNT(*) as trades,
+                   COUNT(*) FILTER (WHERE pnl > 0) as wins
+            FROM agent_performance_log
+            WHERE created_at > NOW() - (%s || ' days')::interval
+            AND pnl IS NOT NULL
+            {pair_clause}
+            GROUP BY DATE(created_at)
+            ORDER BY day
+        """, curve_params)
+        curve_rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        total_signals = len(rows)
+        wins = sum(1 for r in rows if bool(r[4]))
+        pnl_values = [float(r[5]) for r in rows if r[5] is not None]
+        total_pnl = float(sum(pnl_values))
+        win_rate = (wins / total_signals * 100.0) if total_signals > 0 else 0.0
+        sharpe = float(np.mean(pnl_values) / np.std(pnl_values)) if len(pnl_values) > 1 and np.std(pnl_values) > 0 else 0.0
+
+        curve = []
+        cumulative = 0.0
+        for day, daily_pnl, trades, day_wins in curve_rows:
+            value = float(daily_pnl or 0.0)
+            cumulative += value
+            curve.append({
+                'date': day.strftime('%Y-%m-%d'),
+                'daily_pnl': round(value, 2),
+                'cumulative_pnl': round(cumulative, 2),
+                'win_rate': round((day_wins / trades) * 100.0, 1) if trades else 0.0,
+                'trades': int(trades),
+            })
+
+        history = [
+            {
+                'id': idx + 1,
+                'agent_name': r[0],
+                'pair': r[1],
+                'direction': r[2],
+                'confidence': float(r[3] or 0.0),
+                'outcome': 'WIN' if bool(r[4]) else 'LOSS',
+                'pnl': float(r[5] or 0.0),
+                'time': r[6].isoformat(),
+            }
+            for idx, r in enumerate(rows)
+        ]
+
+        return Response({
+            'kpis': {
+                'total_pnl': round(total_pnl, 2),
+                'win_rate': round(win_rate, 2),
+                'sharpe': round(sharpe, 2),
+                'signals': total_signals,
+                'confluence': round(min(max(win_rate * 0.75, 0.0), 100.0), 1),
+            },
+            'curve': curve,
+            'history': history,
+            'days': days,
+            'pair': pair or 'ALL',
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
+
+
+@api_view(["GET"])
+def reports_export_csv_view(request):
+    """Export dynamic report rows as CSV."""
+    pair = _normalize_pair(request.query_params.get('pair', 'all'))
+    days = int(request.query_params.get('days', 90))
+
+    conn = _get_pg_conn()
+    cur = conn.cursor()
+    pair_clause = "AND pair = %s" if pair else ""
+    params = [days] + ([pair] if pair else [])
+    cur.execute(f"""
+        SELECT agent_name, pair, signal_direction, confidence, was_correct, pnl, created_at
+        FROM agent_performance_log
+        WHERE created_at > NOW() - (%s || ' days')::interval
+        AND pnl IS NOT NULL
+        {pair_clause}
+        ORDER BY created_at DESC
+    """, params)
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="reports_{pair or "ALL"}_{days}d.csv"'
+    writer = csv.writer(response)
+    writer.writerow(['agent_name', 'pair', 'direction', 'confidence', 'outcome', 'pnl', 'timestamp'])
+    for row in rows:
+        writer.writerow([
+            row[0],
+            row[1],
+            row[2],
+            float(row[3] or 0.0),
+            'WIN' if bool(row[4]) else 'LOSS',
+            float(row[5] or 0.0),
+            row[6].isoformat(),
+        ])
+    return response
 
 
 def _generate_baseline_performance():

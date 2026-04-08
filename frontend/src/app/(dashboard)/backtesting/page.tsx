@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     BarChart, Bar, ReferenceLine, ComposedChart, Line,
 } from "recharts";
 import { TrendingUp, Scale, Target, Shield, BarChart3, Zap } from "lucide-react";
-import { AuroraBackground, FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter, AnimatedProgressBar, FloatingCard } from "@/components/animations";
+import { FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter, AnimatedProgressBar, FloatingCard } from "@/components/animations";
 
 // Walk-forward simulation - 5 years of data
 const wfData = Array.from({length:60}, (_,i) => {
@@ -52,25 +51,23 @@ export default function BacktestingPage() {
     const [tab, setTab] = useState<"backtest"|"sizing">("backtest");
 
     return (
-        <div className="flex flex-col h-full bg-[#080d18] text-slate-100 relative overflow-hidden">
-            <AuroraBackground />
-            <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-black/30 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1 text-slate-400" />
-                <Separator orientation="vertical" className="h-5 bg-white/10" />
-                <TrendingUp className="size-4 text-amber-400" />
-                <h1 className="text-sm font-bold text-white">Backtesting & Position Sizing</h1>
-                <span className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5">DSO2.2 - DSO2.3</span>
-                <div className="ml-auto flex gap-1 p-1 rounded-lg bg-white/[0.03] border border-white/5">
-                    {[{id:"backtest",l:"Backtesting (DSO2.2)"},{id:"sizing",l:"Position Sizing (DSO2.3)"}].map(t => (
-                        <button key={t.id} onClick={()=>setTab(t.id as any)}
-                            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-amber-600 text-white":"text-slate-400 hover:text-white"}`}>
-                            {t.l}
-                        </button>
-                    ))}
-                </div>
-            </header>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader
+                title="Backtesting & Position Sizing"
+                subtitle="DSO2.2 - DSO2.3"
+                right={
+                    <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.03] p-1">
+                        {[{id:"backtest",l:"Backtesting (DSO2.2)"},{id:"sizing",l:"Position Sizing (DSO2.3)"}].map(t => (
+                            <button key={t.id} onClick={()=>setTab(t.id as "backtest" | "sizing")}
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-amber-600 text-white":"text-slate-400 hover:text-white"}`}>
+                                {t.l}
+                            </button>
+                        ))}
+                    </div>
+                }
+            />
 
-            <div className="relative z-10 flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
 
                 {tab === "backtest" && <>
                     {/* Global Metrics */}
@@ -218,7 +215,7 @@ export default function BacktestingPage() {
                         </div>
                     </FadeInUp>
                 </>}
-            </div>
+            </RBContent>
         </div>
     );
 }

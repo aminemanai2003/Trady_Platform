@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     Table,
     TableBody,
@@ -109,7 +108,12 @@ export default function TradingPage() {
         } catch { }
     }, []);
 
-    useEffect(() => { fetchPositions(); }, [fetchPositions]);
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            void fetchPositions();
+        }, 0);
+        return () => window.clearTimeout(timer);
+    }, [fetchPositions]);
 
     // Show toast notification
     const showToast = (message: string, type: string) => {
@@ -178,20 +182,21 @@ export default function TradingPage() {
                 </div>
             )}
 
-            <header className="flex h-14 shrink-0 items-center gap-2 border-b px-6">
-                <SidebarTrigger className="-ml-1" />
-                <Separator orientation="vertical" className="mr-2 h-4" />
-                <h1 className="text-lg font-semibold">Trading</h1>
-                <div className="ml-auto flex items-center gap-2">
-                    {(["EURUSD", "USDJPY", "USDCHF", "GBPUSD"] as PairKey[]).map((pair) => (
-                        <Button key={pair} size="sm" variant={selectedPair === pair ? "default" : "outline"} onClick={() => setSelectedPair(pair)} className="text-xs">
-                            {pair.slice(0, 3)}/{pair.slice(3)}
-                        </Button>
-                    ))}
-                </div>
-            </header>
+            <RBHeader
+                title="Trading"
+                subtitle="Execution panel and open positions"
+                right={
+                    <div className="flex items-center gap-2">
+                        {(["EURUSD", "USDJPY", "USDCHF", "GBPUSD"] as PairKey[]).map((pair) => (
+                            <Button key={pair} size="sm" variant={selectedPair === pair ? "default" : "outline"} onClick={() => setSelectedPair(pair)} className="text-xs">
+                                {pair.slice(0, 3)}/{pair.slice(3)}
+                            </Button>
+                        ))}
+                    </div>
+                }
+            />
 
-            <div className="flex-1 overflow-auto p-6 space-y-4">
+            <RBContent className="space-y-4">
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
                     {/* TradingView Chart */}
                     <Card className="xl:col-span-3 border-border/50 bg-card/80 backdrop-blur">
@@ -314,7 +319,7 @@ export default function TradingPage() {
                         )}
                     </CardContent>
                 </Card>
-            </div>
+            </RBContent>
         </div>
     );
 }

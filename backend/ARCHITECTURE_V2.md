@@ -1,4 +1,4 @@
-# V2 Architecture - Production-Grade FX Trading System
+
 
 ## 🎯 Architecture Overview
 

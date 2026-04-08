@@ -13,6 +13,8 @@ export const config = {
         "/trading/:path*",
         "/monitoring/:path*",
         "/settings/:path*",
+        "/strategy-tutor/:path*",
+        "/strategy-tutor",
     ],
 };
 

@@ -26,10 +26,23 @@
 The current frontend website is fully in English and includes:
 
 - An animated landing page (`/`) with ReactBits LightPillar and SplashCursor effects
-- Authentication pages (`/login`, `/register`)
+- **Secure authentication** with 2FA support (Face Recognition, Email OTP, SMS OTP)
+- Authentication pages (`/login`, `/register`) with KYC verification
 - Dashboard modules for trading, analytics, monitoring, reports, agents, and settings
 
 The UI is designed to reflect the DATAMINDS product identity while consuming live backend APIs.
+
+### Security Features
+
+- **Two-Factor Authentication (2FA)** with multiple methods:
+  - **Face Recognition** (DeepFace + ArcFace, 512-d embeddings, Fernet encryption)
+  - **Email OTP** (6-digit codes via Gmail SMTP)
+  - **SMS OTP** (via Twilio)
+- **KYC Verification** with OCR extraction (Tesseract + Google Gemini)
+- **Token-based authentication** (Django REST Framework authtoken)
+- **Rate limiting** on sensitive endpoints (5 attempts/10min for 2FA)
+
+📄 **See [DATABASE_2FA_FINAL_REPORT.md](DATABASE_2FA_FINAL_REPORT.md)** for complete 2FA architecture details.
 
 ### Key Principles
 

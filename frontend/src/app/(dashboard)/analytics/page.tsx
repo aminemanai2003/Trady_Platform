@@ -2,14 +2,13 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, LineChart, Line, Legend,
 } from "recharts";
-import { TrendingUp, Brain, Newspaper, BarChart3 } from "lucide-react";
-import { AuroraBackground, FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter } from "@/components/animations";
+import { TrendingUp, Brain, Newspaper } from "lucide-react";
+import { FadeInUp, StaggerContainer, StaggerItem, AnimatedCounter } from "@/components/animations";
 
 const perf90 = Array.from({ length: 90 }, (_, i) => {
     const date = new Date(); date.setDate(date.getDate() - (90 - i));
@@ -55,17 +54,10 @@ export default function AnalyticsPage() {
     const maxDD = -18.4; const sharpe = 1.73; const win = 58.2;
 
     return (
-        <div className="flex flex-col h-full bg-[#080d18] text-slate-100 relative overflow-hidden">
-            <AuroraBackground />
-            <header className="relative z-10 flex h-14 shrink-0 items-center gap-3 border-b border-white/5 bg-black/30 backdrop-blur-xl px-6">
-                <SidebarTrigger className="-ml-1 text-slate-400" />
-                <Separator orientation="vertical" className="h-5 bg-white/10" />
-                <BarChart3 className="size-4 text-blue-400" />
-                <h1 className="text-sm font-bold text-white">Analytics</h1>
-                <span className="text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1.5 py-0.5">DSO1.1 - DSO1.3 - DSO2.2</span>
-            </header>
+        <div className="flex flex-col h-full bg-slate-950 text-slate-100">
+            <RBHeader title="Analytics" subtitle="DSO1.1 - DSO1.3 - DSO2.2" />
 
-            <div className="relative z-10 flex-1 overflow-auto p-6 space-y-6">
+            <RBContent className="space-y-6">
                 {/* KPI Row */}
                 <FadeInUp>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -211,7 +203,7 @@ export default function AnalyticsPage() {
                         </StaggerItem>
                     </StaggerContainer>
                 )}
-            </div>
+            </RBContent>
         </div>
     );
 }

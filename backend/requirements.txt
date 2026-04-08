@@ -5,7 +5,10 @@ psycopg2-binary>=2.9
 influxdb-client>=1.40
 redis>=5.0
 channels>=4.0
-
+twilio>=9.0
+cryptography>=42.0
+facenet-pytorch>=2.5
+deepface>=0.0.93
 # LangChain ecosystem (free models)
 langchain>=0.2
 langgraph>=0.2
@@ -33,6 +36,16 @@ apscheduler>=3.10.0  # Background task scheduling
 python-dotenv>=1.0
 pydantic>=2.7
 python-dateutil>=2.9
+
+# OCR pipeline
+opencv-python-headless>=4.9   # image preprocessing (no GUI needed on server)
+easyocr>=1.7                  # OCR engine with bounding boxes (multilingual)
+Pillow>=10.0                  # image I/O helper
+
+# RAG Strategy Tutor
+pypdf>=4.0                    # PDF text extraction (no external binaries needed)
+# Embeddings + generation: Ollama (local, unlimited) + HuggingFace fallback
+# transformers and sentence-transformers already listed above
 
 # Production
 gunicorn>=22.0

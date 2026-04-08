@@ -18,6 +18,25 @@ model User {
   positions      Position[]
   orders         Order[]
   settings       UserSettings?
+  kycVerifications KycVerification[]
+}
+
+model KycVerification {
+  id               Int      @id @default(autoincrement())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  status           String   @default("pending") @db.VarChar(20)
+  fullName         String?  @db.VarChar(120)
+  cinNumber        String?  @db.VarChar(40)
+  nationality      String?  @db.VarChar(60)
+  ocrText          String?  @db.Text
+  confidenceBasic  Float?
+  extractedFields  Json?
+  uploadedAt       DateTime @default(now())
+  confirmedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Position {
