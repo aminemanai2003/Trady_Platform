@@ -5,16 +5,17 @@ import { Send, Loader2, BookOpen, Sparkles, FileText, AlertCircle } from "lucide
 import { RBButton } from "@/components/reactbits";
 
 interface Message {
-    id:      string;
-    role:    "user" | "assistant";
-    text:    string;
-    sources: string[];
-    cached:  boolean;
-    error:   boolean;
+    id:        string;
+    role:      "user" | "assistant";
+    text:      string;
+    sources:   string[];
+    cached:    boolean;
+    error:     boolean;
+    streaming: boolean;
 }
 
 interface Props {
-    hasDocs:     boolean;
+    hasDocs: boolean;
 }
 
 function uid() {
@@ -36,40 +37,84 @@ export default function QueryChat({ hasDocs }: Props) {
         if (!q || busy) return;
 
         const userMsg: Message = {
-            id: uid(), role: "user", text: q, sources: [], cached: false, error: false,
+            id: uid(), role: "user", text: q,
+            sources: [], cached: false, error: false, streaming: false,
         };
         setMessages((prev) => [...prev, userMsg]);
         setQuery("");
         setBusy(true);
 
+        const assistantId = uid();
+        setMessages((prev) => [
+            ...prev,
+            { id: assistantId, role: "assistant", text: "", sources: [], cached: false, error: false, streaming: true },
+        ]);
+
         try {
-            const res  = await fetch("/api/rag/query", {
+            const res = await fetch("/api/rag/stream", {
                 method:  "POST",
                 headers: { "Content-Type": "application/json" },
                 body:    JSON.stringify({ query: q }),
             });
-            const data = await res.json();
 
-            const assistantMsg: Message = {
-                id:      uid(),
-                role:    "assistant",
-                text:    data.error
-                    ? `Error: ${data.error}`
-                    : (data.answer ?? "No answer returned."),
-                sources: data.sources ?? [],
-                cached:  data.cached  ?? false,
-                error:   Boolean(data.error) || !res.ok,
-            };
-            setMessages((prev) => [...prev, assistantMsg]);
+            if (!res.ok || !res.body) {
+                const data = await res.json().catch(() => ({}));
+                setMessages((prev) => prev.map((m) =>
+                    m.id === assistantId
+                        ? { ...m, text: data.error ?? "Request failed.", error: true, streaming: false }
+                        : m
+                ));
+                return;
+            }
+
+            const reader  = res.body.getReader();
+            const decoder = new TextDecoder();
+            let   buffer  = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() ?? "";
+
+                for (const line of lines) {
+                    if (!line.startsWith("data: ")) continue;
+                    try {
+                        const payload = JSON.parse(line.slice(6)) as {
+                            token?: string;
+                            done?: boolean;
+                            sources?: string[];
+                            provider?: string;
+                        };
+
+                        if (payload.token) {
+                            setMessages((prev) => prev.map((m) =>
+                                m.id === assistantId
+                                    ? { ...m, text: m.text + payload.token }
+                                    : m
+                            ));
+                        }
+
+                        if (payload.done) {
+                            setMessages((prev) => prev.map((m) =>
+                                m.id === assistantId
+                                    ? { ...m, sources: payload.sources ?? [], streaming: false }
+                                    : m
+                            ));
+                        }
+                    } catch {
+                        // skip malformed SSE line
+                    }
+                }
+            }
         } catch {
-            setMessages((prev) => [
-                ...prev,
-                {
-                    id: uid(), role: "assistant",
-                    text: "Network error. Could not reach the server.",
-                    sources: [], cached: false, error: true,
-                },
-            ]);
+            setMessages((prev) => prev.map((m) =>
+                m.id === assistantId
+                    ? { ...m, text: "Network error. Could not reach the server.", error: true, streaming: false }
+                    : m
+            ));
         } finally {
             setBusy(false);
         }
@@ -141,9 +186,6 @@ export default function QueryChat({ hasDocs }: Props) {
                                 <div className="flex items-center gap-1.5 mb-2 text-xs text-violet-400">
                                     <Sparkles className="size-3" />
                                     <span>Strategy Tutor</span>
-                                    {msg.cached && (
-                                        <span className="text-slate-600 ml-1">· cached</span>
-                                    )}
                                 </div>
                             )}
                             {msg.role === "assistant" && msg.error && (
@@ -153,7 +195,12 @@ export default function QueryChat({ hasDocs }: Props) {
                                 </div>
                             )}
 
-                            <p className="whitespace-pre-wrap">{msg.text}</p>
+                            <p className="whitespace-pre-wrap">
+                                {msg.text}
+                                {msg.streaming && (
+                                    <span className="inline-block w-0.5 h-[1em] bg-violet-400 animate-pulse ml-0.5 align-middle" />
+                                )}
+                            </p>
 
                             {msg.sources.length > 0 && (
                                 <div className="mt-2.5 pt-2 border-t border-slate-700/50">
@@ -175,23 +222,6 @@ export default function QueryChat({ hasDocs }: Props) {
                         </div>
                     </div>
                 ))}
-
-                {/* Typing indicator */}
-                {busy && (
-                    <div className="flex justify-start">
-                        <div className="bg-slate-800 border border-slate-700/60 rounded-2xl rounded-bl-sm px-4 py-3">
-                            <div className="flex gap-1.5 items-center h-4">
-                                {[0, 150, 300].map((delay) => (
-                                    <span
-                                        key={delay}
-                                        className="size-1.5 rounded-full bg-slate-500 animate-bounce"
-                                        style={{ animationDelay: `${delay}ms` }}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 <div ref={bottomRef} />
             </div>
@@ -225,8 +255,9 @@ export default function QueryChat({ hasDocs }: Props) {
             </div>
 
             <p className="text-xs text-slate-600 text-center mt-2">
-                Educational use only — not financial advice · Powered by Gemini
+                Educational use only — not financial advice · Powered by local AI
             </p>
         </div>
     );
 }
+

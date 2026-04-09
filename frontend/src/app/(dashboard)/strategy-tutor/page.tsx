@@ -31,7 +31,7 @@ export default function StrategyTutorPage() {
                 subtitle="Ask questions about your uploaded trading documents — powered by Gemini AI"
                 right={
                     <div className="flex items-center gap-1.5 text-xs text-slate-500 bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-1.5">
-                        <GraduationCap className="size-3.5 text-violet-400" />
+                        <GraduationCap className="size-3.5 text-brand-blue-400" />
                         Educational use only · Not financial advice
                     </div>
                 }
@@ -49,7 +49,7 @@ export default function StrategyTutorPage() {
                                 onClick={() => setTab("upload")}
                                 className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-colors ${
                                     tab === "upload"
-                                        ? "bg-sky-600 text-white"
+                                        ? "bg-brand-blue-600 text-white"
                                         : "text-slate-400 hover:text-slate-200"
                                 }`}
                             >
@@ -61,7 +61,7 @@ export default function StrategyTutorPage() {
                                 onClick={() => setTab("chat")}
                                 className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-colors ${
                                     tab === "chat"
-                                        ? "bg-violet-600 text-white"
+                                        ? "bg-brand-green-600 text-white"
                                         : "text-slate-400 hover:text-slate-200"
                                 }`}
                             >

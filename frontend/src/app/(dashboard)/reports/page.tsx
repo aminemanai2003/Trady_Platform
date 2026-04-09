@@ -53,7 +53,7 @@ export default function ReportsPage() {
                         <div className="flex gap-1">
                             {PAIRS.map(p => (
                                 <button key={p} onClick={()=>setFilter(p)}
-                                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${filter===p?"bg-indigo-600 text-white":"text-slate-500 hover:text-white border border-white/5 hover:border-white/10"}`}>
+                                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${filter===p?"bg-brand-blue-600 text-white":"text-slate-500 hover:text-white border border-white/5 hover:border-white/10"}`}>
                                     {p}
                                 </button>
                             ))}

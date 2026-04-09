@@ -46,6 +46,10 @@ def send_email(
     """
     sender = os.getenv("GMAIL_USER")
     password = os.getenv("GMAIL_APP_PASSWORD")
+    # Strip spaces — Google App Passwords are displayed with spaces for readability
+    # but SMTP auth requires the 16-character form without spaces.
+    if password:
+        password = password.replace(" ", "")
 
     if not sender or not password:
         logger.error(
@@ -98,30 +102,136 @@ def send_otp_email(to: str, otp: str, username: str = "") -> bool:
     The raw OTP value is embedded in the email body but NEVER written to logs.
     """
     display_name = username or "there"
-    subject = "Your verification code"
+    # Format OTP as "123 456" for readability in both plain-text and HTML
+    otp_display = f"{otp[:3]} {otp[3:]}" if len(otp) == 6 else otp
+
+    subject = "Your Trady verification code"
+
     body = (
         f"Hi {display_name},\n\n"
-        f"Your verification code is: {otp}\n\n"
+        f"Your Trady verification code is: {otp_display}\n\n"
         f"This code expires in 5 minutes. Never share it with anyone.\n\n"
-        f"If you did not request this code, please secure your account immediately."
+        f"If you did not request this code, please secure your account immediately.\n\n"
+        f"— The Trady Security Team"
     )
-    html_body = f"""
-<div style="font-family:Arial,sans-serif;max-width:500px;margin:auto;padding:28px;
-            border:1px solid #e5e7eb;border-radius:10px;">
-  <h2 style="margin:0 0 16px;color:#111827;">Verification Code</h2>
-  <p style="color:#374151;">Hi <strong>{display_name}</strong>,</p>
-  <p style="color:#374151;">Use the code below to complete your sign-in:</p>
-  <div style="background:#f3f4f6;padding:20px 32px;border-radius:8px;
-              text-align:center;font-size:36px;letter-spacing:10px;
-              font-weight:700;color:#111827;margin:24px 0;">
-    {otp}
-  </div>
-  <p style="color:#374151;">This code is valid for <strong>5 minutes</strong>.</p>
-  <p style="color:#6b7280;font-size:12px;margin-top:24px;">
-    If you did not request this, you can safely ignore this email.
-  </p>
-</div>
-"""
+
+    html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trady — Verification Code</title>
+</head>
+<body style="margin:0;padding:0;background:#0b0f1a;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#0b0f1a;padding:48px 16px;">
+    <tr>
+      <td align="center">
+        <table width="520" cellpadding="0" cellspacing="0" border="0"
+               style="background:#111827;border-radius:16px;overflow:hidden;
+                      border:1px solid #1e2d45;max-width:520px;width:100%;">
+
+          <!-- Header / Logo band -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#0658BA 0%,#0a3f7a 100%);
+                        padding:32px 40px 28px;text-align:center;">
+              <!-- Logo wordmark -->
+              <table cellpadding="0" cellspacing="0" border="0" align="center">
+                <tr>
+                  <td style="background:#fff;border-radius:10px;
+                              padding:6px 14px;display:inline-block;">
+                    <span style="font-size:22px;font-weight:800;
+                                 color:#0658BA;letter-spacing:-0.5px;
+                                 font-family:'Segoe UI',Arial,sans-serif;">
+                      Trady
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:14px 0 0;color:#93c5fd;font-size:13px;
+                         letter-spacing:0.05em;text-transform:uppercase;
+                         font-weight:600;">
+                Security Verification
+              </p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <p style="margin:0 0 8px;color:#9ca3af;font-size:14px;">Hi <strong style="color:#e5e7eb;">{display_name}</strong>,</p>
+              <p style="margin:0 0 32px;color:#9ca3af;font-size:14px;line-height:1.6;">
+                Use the code below to complete your sign-in to Trady.
+                This code is valid for <strong style="color:#e5e7eb;">5 minutes</strong>.
+              </p>
+
+              <!-- OTP Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" style="padding:4px 0 36px;">
+                    <div style="background:#0b0f1a;border:1px solid #1e3a5f;
+                                border-radius:14px;padding:28px 40px;display:inline-block;">
+                      <!-- "Your code" label -->
+                      <p style="margin:0 0 12px;color:#4d8048;font-size:11px;
+                                 font-weight:700;letter-spacing:0.15em;
+                                 text-transform:uppercase;text-align:center;">
+                        Verification Code
+                      </p>
+                      <!-- The code itself -->
+                      <p style="margin:0;font-size:52px;font-weight:800;
+                                 letter-spacing:18px;color:#ffffff;
+                                 text-align:center;font-family:'Courier New',monospace;
+                                 line-height:1;">
+                        {otp_display}
+                      </p>
+                      <!-- Timer bar -->
+                      <p style="margin:16px 0 0;color:#6b7280;font-size:12px;
+                                 text-align:center;">
+                        ⏱ Expires in <strong style="color:#e5e7eb;">5 minutes</strong>
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Security note -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="background:#1a1f2e;border-left:3px solid #0658BA;
+                              border-radius:0 8px 8px 0;padding:14px 18px;">
+                    <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;">
+                      🔒 <strong style="color:#e5e7eb;">Never share</strong> this code with anyone —
+                      Trady will never ask for it by phone or chat.<br/>
+                      If you didn't request this, 
+                      <a href="#" style="color:#0658BA;text-decoration:none;">
+                        secure your account
+                      </a> immediately.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#0d1117;border-top:1px solid #1e2d45;
+                        padding:20px 40px;text-align:center;">
+              <p style="margin:0;color:#374151;font-size:11px;line-height:1.6;">
+                © 2026 Trady · Secure Trading Platform<br />
+                This is an automated message — please do not reply.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
     return send_email(to, subject, body, html_body)
 
 

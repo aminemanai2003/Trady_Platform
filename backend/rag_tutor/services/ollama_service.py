@@ -67,13 +67,26 @@ def _is_safe_output(text: str) -> bool:
     return not any(phrase in lower for phrase in _UNSAFE_PHRASES)
 
 
+_OLLAMA_AVAILABLE_CACHE: Optional[bool] = None
+_OLLAMA_LAST_CHECK: float = 0.0
+_OLLAMA_CHECK_TTL = 10.0  # re-check at most every 10 seconds
+
+
 def _check_ollama_available() -> bool:
-    """Check if Ollama is running locally."""
+    """Check if Ollama is running locally. Results are cached for 10 s."""
+    global _OLLAMA_AVAILABLE_CACHE, _OLLAMA_LAST_CHECK
+    import time
+    now = time.monotonic()
+    if _OLLAMA_AVAILABLE_CACHE is not None and (now - _OLLAMA_LAST_CHECK) < _OLLAMA_CHECK_TTL:
+        return _OLLAMA_AVAILABLE_CACHE
     try:
-        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=2)
-        return response.status_code == 200
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=0.5)
+        result = response.status_code == 200
     except Exception:
-        return False
+        result = False
+    _OLLAMA_AVAILABLE_CACHE = result
+    _OLLAMA_LAST_CHECK = now
+    return result
 
 
 # ── Ollama Embeddings ─────────────────────────────────────────────────────────
@@ -105,16 +118,17 @@ def get_embedding_ollama(text: str) -> Optional[List[float]]:
 def get_embedding_huggingface(text: str) -> Optional[List[float]]:
     """
     Fallback: Use sentence-transformers locally via HuggingFace.
+    Uses multi-qa-MiniLM-L6-cos-v1 — a 384-dim model fine-tuned for
+    asymmetric retrieval (query → passage), not just STS.
     No API required, runs on CPU.
     """
+    global _hf_model
     try:
-        from sentence_transformers import SentenceTransformer
-        
-        # Cache model in memory
-        global _hf_model
-        if '_hf_model' not in globals():
-            _hf_model = SentenceTransformer('all-MiniLM-L6-v2')
-        
+        from sentence_transformers import SentenceTransformer  # noqa: PLC0415
+
+        if '_hf_model' not in globals() or _hf_model is None:
+            _hf_model = SentenceTransformer('multi-qa-MiniLM-L6-cos-v1')
+
         embedding = _hf_model.encode(text, convert_to_numpy=True)
         return embedding.tolist()
     except ImportError:
@@ -122,40 +136,82 @@ def get_embedding_huggingface(text: str) -> Optional[List[float]]:
         return None
     except Exception as exc:
         logger.error("HuggingFace embedding failed: %s", exc)
+        # Reset so the next call retries a fresh model load instead of
+        # using a potentially corrupt model instance.
+        _hf_model = None
         return None
 
 
-def get_embedding(text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> List[float]:
+def get_embedding(text: str, task_type: str = "RETRIEVAL_DOCUMENT", target_dim: int | None = None) -> List[float]:
     """
     Get text embedding with automatic fallback chain:
     1. Try Ollama (local, fast, unlimited)
     2. Fall back to HuggingFace (local, no API)
     3. Raise error if both fail
-    
-    Returns list of floats (embedding vector).
+
+    ``target_dim`` — when set, cache AND live results that don't match this dim
+    are rejected so we never mix vectors from different model families.
+    This prevents stale 768-dim Ollama cache entries being served when only
+    384-dim HuggingFace vectors are stored in the DB.
+
+    Cache namespaces are model-specific (``emb_ol`` / ``emb_hf``) so switching
+    between Ollama and HuggingFace never reuses incompatible cached vectors.
     """
-    ck = _cache_key("emb", f"{task_type}:{text}")
-    cached = cache.get(ck)
-    if cached is not None:
-        return cached
+    def _cached(namespace: str) -> Optional[List[float]]:
+        ck = _cache_key(namespace, f"{task_type}:{text}")
+        v = cache.get(ck)
+        if v is None:
+            return None
+        if target_dim is not None and len(v) != target_dim:
+            # Stale entry from a different model — evict it
+            cache.delete(ck)
+            return None
+        return v
 
-    # Try Ollama first
-    if _check_ollama_available():
-        embedding = get_embedding_ollama(text)
-        if embedding:
-            cache.set(ck, embedding, _CACHE_TTL_EMBED)
-            logger.debug("Embedding from Ollama (local)")
-            return embedding
+    def _store(namespace: str, v: List[float]) -> None:
+        ck = _cache_key(namespace, f"{task_type}:{text}")
+        cache.set(ck, v, _CACHE_TTL_EMBED)
 
-    # Fallback to HuggingFace
+    # ── Ollama ────────────────────────────────────────────────────────────────
+    # Skip Ollama when caller knows stored vectors are 384-dim (HF) to avoid
+    # producing a 768-dim query vector that would silently miss everything.
+    skip_ollama = (target_dim is not None and target_dim != 768)
+
+    if not skip_ollama:
+        v = _cached("emb_ol")
+        if v is not None:
+            logger.debug("Embedding from Ollama cache (dim=%d)", len(v))
+            return v
+
+        if _check_ollama_available():
+            embedding = get_embedding_ollama(text)
+            if embedding and (target_dim is None or len(embedding) == target_dim):
+                _store("emb_ol", embedding)
+                logger.debug("Embedding from Ollama live (dim=%d)", len(embedding))
+                return embedding
+
+    # ── HuggingFace ───────────────────────────────────────────────────────────
+    # Use "emb_hf2" as cache namespace so stale entries from the old
+    # all-MiniLM-L6-v2 model (emb_hf) are not reused by multi-qa-MiniLM-L6-cos-v1.
+    v = _cached("emb_hf2")
+    if v is not None:
+        logger.debug("Embedding from HuggingFace cache (dim=%d)", len(v))
+        return v
+
     embedding = get_embedding_huggingface(text)
-    if embedding:
-        cache.set(ck, embedding, _CACHE_TTL_EMBED)
-        logger.debug("Embedding from HuggingFace (local)")
+    # Retry once if failed (handles torch meta-tensor race during app startup)
+    if embedding is None:
+        import time as _time
+        _time.sleep(1)
+        embedding = get_embedding_huggingface(text)
+
+    if embedding and (target_dim is None or len(embedding) == target_dim):
+        _store("emb_hf2", embedding)
+        logger.debug("Embedding from HuggingFace live (dim=%d)", len(embedding))
         return embedding
 
     raise RuntimeError(
-        "All embedding services failed. "
+        "All embedding services failed or produced incompatible dimensions. "
         "Install Ollama (https://ollama.ai) or sentence-transformers."
     )
 
@@ -188,47 +244,48 @@ def generate_answer_ollama(prompt: str) -> Optional[str]:
 
 def generate_answer_huggingface(prompt: str) -> Optional[str]:
     """
-    Fallback: Use HuggingFace transformers locally.
-    Simple text generation with small models.
+    Removed: TinyLlama on CPU took several minutes per response.
+    Kept for interface compatibility but always returns None so callers
+    fall through to the fast chunk-reader fallback.
     """
-    try:
-        from transformers import pipeline
-        
-        # Cache model
-        global _hf_gen_model
-        if '_hf_gen_model' not in globals():
-            _hf_gen_model = pipeline(
-                "text-generation",
-                model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
-                device=-1,  # CPU
-            )
-        
-        result = _hf_gen_model(
-            prompt,
-            max_new_tokens=512,
-            temperature=0.2,
-            do_sample=True,
-        )
-        return result[0]["generated_text"].strip()
-    except ImportError:
-        logger.error("transformers not installed. Run: pip install transformers")
-        return None
-    except Exception as exc:
-        logger.error("HuggingFace generation failed: %s", exc)
-        return None
+    return None
+
+
+def _chunk_reader_answer(query: str, chunks: List[str]) -> str:
+    """
+    Instant fallback when no LLM is available: present the most relevant
+    document excerpts as a structured answer with a clear header.
+    This is always fast (no model inference required).
+    """
+    intro = (
+        f"Here is what your documents say about \"{query}\":\n\n"
+        if "?" not in query else
+        "Based on your uploaded documents:\n\n"
+    )
+    body = "\n\n---\n\n".join(
+        f"[Excerpt {i + 1}]\n{chunk.strip()}"
+        for i, chunk in enumerate(chunks[:3])
+    )
+    footer = (
+        "\n\n---\n"
+        "Tip: Install Ollama (https://ollama.ai) and run `ollama pull llama3.2:3b` "
+        "to get AI-generated explanations instead of raw excerpts."
+    )
+    return intro + body + footer
 
 
 def generate_answer(query: str, context_chunks: List[str], user_id: str) -> Dict:
     """
     Generate educational answer with automatic fallback:
     1. Try Ollama (local, unlimited)
-    2. Fall back to HuggingFace (local, basic)
-    3. Return error message if both fail
-    
+    2. Fast chunk-reader (instant — returns formatted excerpts)
+
+    TinyLlama/CPU generation has been removed: it took several minutes per
+    response with no visible progress, making the UI appear frozen.
+
     Returns:
         {"answer": str, "sources": list, "cached": bool, "provider": str}
     """
-    # Use at most 5 chunks
     chunks_to_use = context_chunks[:5]
     context = "\n\n---\n\n".join(
         f"[Excerpt {i + 1}]:\n{chunk}" for i, chunk in enumerate(chunks_to_use)
@@ -252,44 +309,107 @@ def generate_answer(query: str, context_chunks: List[str], user_id: str) -> Dict
         )
         prompt = _SYSTEM_PROMPT.format(context=context, query=query)
 
-    # Try Ollama first
+    # ── Try Ollama (fast, local LLM) ──────────────────────────────────────────
     if _check_ollama_available():
         answer_text = generate_answer_ollama(prompt)
         if answer_text and _is_safe_output(answer_text):
             result = {
-                "answer": answer_text,
-                "sources": [],
-                "cached": False,
-                "provider": "Ollama (local)"
+                "answer":   answer_text,
+                "sources":  [],
+                "cached":   False,
+                "provider": "Ollama (local)",
             }
             cache.set(ck, json.dumps(result), _CACHE_TTL_RESP)
             return result
 
-    # Fallback to HuggingFace
-    answer_text = generate_answer_huggingface(prompt)
-    if answer_text:
-        # Extract answer after prompt (HF returns full input+output)
-        if prompt in answer_text:
-            answer_text = answer_text.replace(prompt, "").strip()
-        
-        if _is_safe_output(answer_text):
-            result = {
-                "answer": answer_text,
-                "sources": [],
-                "cached": False,
-                "provider": "HuggingFace (local)"
-            }
-            cache.set(ck, json.dumps(result), _CACHE_TTL_RESP)
-            return result
-
-    # Both failed
-    return {
-        "answer": (
-            "AI service temporarily unavailable. "
-            "Please install Ollama (https://ollama.ai) for local AI, "
-            "or wait and try again later."
-        ),
-        "sources": [],
-        "cached": False,
-        "provider": "none"
+    # ── Fallback: instant chunk-reader (no LLM inference) ─────────────────────
+    answer_text = _chunk_reader_answer(query, chunks_to_use)
+    result = {
+        "answer":   answer_text,
+        "sources":  [],
+        "cached":   False,
+        "provider": "chunk-reader",
     }
+    # Cache briefly so repeated identical queries are instant
+    cache.set(ck, json.dumps(result), 60 * 5)
+    return result
+
+
+# ── SSE Streaming Generation ──────────────────────────────────────────────────
+
+def generate_answer_stream(query: str, context_chunks: List[str], user_id: str):
+    """
+    Generator that yields SSE-formatted lines for a streaming response.
+
+    Each yielded string is either:
+        data: {"token": "<text>"}\n\n
+    or the final event:
+        data: {"done": true, "provider": "<name>"}\n\n
+
+    Falls back to word-by-word streaming of a blocking ``generate_answer``
+    call when Ollama is not available.
+    """
+    chunks_to_use = context_chunks[:5]
+    context = "\n\n---\n\n".join(
+        f"[Excerpt {i + 1}]:\n{chunk}" for i, chunk in enumerate(chunks_to_use)
+    )
+    prompt = _SYSTEM_PROMPT.format(context=context, query=query)
+
+    if len(prompt) > 112_000:
+        chunks_to_use = context_chunks[:3]
+        context = "\n\n---\n\n".join(
+            f"[Excerpt {i + 1}]:\n{chunk}" for i, chunk in enumerate(chunks_to_use)
+        )
+        prompt = _SYSTEM_PROMPT.format(context=context, query=query)
+
+    # ── Ollama native streaming ───────────────────────────────────────────────
+    if _check_ollama_available():
+        try:
+            response = requests.post(
+                f"{OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": OLLAMA_GEN_MODEL,
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": {"temperature": 0.2, "num_predict": 1024},
+                },
+                stream=True,
+                timeout=120,
+            )
+            response.raise_for_status()
+
+            full_text = ""
+            for raw_line in response.iter_lines():
+                if not raw_line:
+                    continue
+                try:
+                    chunk_data = json.loads(raw_line)
+                    token = chunk_data.get("response", "")
+                    if token:
+                        full_text += token
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+                    if chunk_data.get("done"):
+                        break
+                except Exception:  # noqa: BLE001
+                    continue
+
+            if not _is_safe_output(full_text):
+                safety_msg = " [Response filtered: contains disallowed content]"
+                yield f"data: {json.dumps({'token': safety_msg})}\n\n"
+
+            yield f"data: {json.dumps({'done': True, 'provider': 'Ollama (local)'})}\n\n"
+            return
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Ollama streaming failed (%s) — falling back to blocking gen", exc)
+
+    # ── Fallback: blocking generate → word-by-word SSE ────────────────────────
+    result = generate_answer(query, context_chunks, user_id)
+    answer = result.get("answer", "")
+    provider = result.get("provider", "unknown")
+
+    words = answer.split(" ")
+    for i, word in enumerate(words):
+        token = word + (" " if i < len(words) - 1 else "")
+        yield f"data: {json.dumps({'token': token})}\n\n"
+
+    yield f"data: {json.dumps({'done': True, 'provider': provider})}\n\n"

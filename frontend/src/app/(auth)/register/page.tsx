@@ -5,8 +5,11 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2, Eye, EyeOff, CheckCircle2, ScanText, ShieldCheck, Mail, Smartphone, Scan, ArrowRight, Shield } from "lucide-react";
+import { Eye, EyeOff, CheckCircle2, ScanText, ShieldCheck, Mail, Smartphone, Scan, ArrowRight, Shield } from "lucide-react";
 import { RBButton, RBCard, RBInput, RBLabel, RBPage } from "@/components/reactbits";
+import { ProgressIndicator } from "@/components/ui/progress-indicator";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import FaceEnrollModal from "@/components/FaceEnrollModal";
 import TwoFASetupVerification from "@/components/TwoFASetupVerification";
 
@@ -248,6 +251,16 @@ export default function RegisterPage() {
                         <span className="text-xl font-bold text-slate-100">Trady</span>
                     </div>
 
+                    <div className="mb-6">
+                        <ProgressIndicator 
+                            currentStep={3} 
+                            totalSteps={3} 
+                            type="numbers" 
+                            showLabels 
+                            className="justify-center" 
+                        />
+                    </div>
+
                     <RBCard className="p-6 md:p-8">
                         <TwoFASetupVerification
                             method={twoFaMethod as "face" | "email" | "sms"}
@@ -277,17 +290,27 @@ export default function RegisterPage() {
                         <span className="text-xl font-bold text-slate-100">Trady</span>
                     </div>
 
+                    <div className="mb-6">
+                        <ProgressIndicator 
+                            currentStep={2} 
+                            totalSteps={3} 
+                            type="numbers" 
+                            showLabels 
+                            className="justify-center" 
+                        />
+                    </div>
+
                     <RBCard className="p-6 md:p-8">
-                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-emerald-600/20 mx-auto mb-4">
-                            <Shield className="size-7 text-emerald-400" />
+                        <div className="flex items-center justify-center w-14 h-14 rounded-full bg-brand-blue-500/15 mx-auto mb-4">
+                            <Shield className="size-7 text-brand-blue-400" />
                         </div>
                         <h2 className="text-2xl font-bold text-slate-100 text-center mb-1">Secure your account</h2>
                         <p className="text-sm text-slate-400 text-center mb-6">Choose a two-factor authentication method. You can change this later in settings.</p>
 
                         {twoFaError && (
-                            <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-sm text-rose-400 text-center">
+                            <Alert variant="error" className="mb-4" onClose={() => setTwoFaError("")}>
                                 {twoFaError}
-                            </div>
+                            </Alert>
                         )}
 
                         <div className="space-y-3 mb-6">
@@ -303,7 +326,7 @@ export default function RegisterPage() {
                                     onClick={() => setTwoFaMethod(id)}
                                     className={`w-full flex items-start gap-3 rounded-xl border p-4 text-left transition-all ${
                                         twoFaMethod === id
-                                            ? "border-emerald-500/50 bg-emerald-500/10"
+                                            ? "border-brand-blue-500/50 bg-brand-blue-500/10"
                                             : "border-slate-700 bg-slate-900/50 hover:border-slate-600"
                                     }`}
                                 >
@@ -312,7 +335,7 @@ export default function RegisterPage() {
                                         <span className="block text-sm font-semibold text-slate-100">{label}</span>
                                         <span className="block text-xs text-slate-400 mt-0.5">{desc}</span>
                                     </span>
-                                    {twoFaMethod === id && <CheckCircle2 className="size-4 text-emerald-400 ml-auto mt-0.5 shrink-0" />}
+                                    {twoFaMethod === id && <CheckCircle2 className="size-4 text-brand-blue-400 ml-auto mt-0.5 shrink-0" />}
                                 </button>
                             ))}
                         </div>
@@ -335,7 +358,7 @@ export default function RegisterPage() {
                             disabled={twoFaLoading}
                             onClick={handle2FaSetup}
                         >
-                            {twoFaLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+                            {twoFaLoading ? <Spinner size="sm" label="Setting up 2FA" /> : null}
                             {twoFaLoading
                                 ? "Setting up…"
                                 : twoFaMethod === "none"
@@ -377,14 +400,24 @@ export default function RegisterPage() {
                     <span className="text-xl font-bold text-slate-100">Trady</span>
                 </div>
 
+                <div className="mb-6">
+                    <ProgressIndicator 
+                        currentStep={1} 
+                        totalSteps={3} 
+                        type="numbers" 
+                        showLabels 
+                        className="justify-center" 
+                    />
+                </div>
+
                 <RBCard className="p-6 md:p-8">
                     <h2 className="text-2xl font-bold text-slate-100 text-center mb-1">Create your account</h2>
                     <p className="text-sm text-slate-400 text-center mb-6">Quick signup with global ID verification</p>
 
                     {error && (
-                        <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-sm text-rose-400 text-center">
+                        <Alert variant="error" className="mb-4" onClose={() => setError("")}>
                             {error}
-                        </div>
+                        </Alert>
                     )}
 
                     <form onSubmit={handleSubmit} className="space-y-5">
@@ -417,20 +450,45 @@ export default function RegisterPage() {
                                     required
                                     className="pr-11"
                                     placeholder="Min 6 characters"
+                                    autoComplete="new-password"
                                 />
                                 <button
                                     type="button"
                                     onClick={() => setShowPw(!showPw)}
-                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                    aria-label={showPw ? "Hide password" : "Show password"}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors rounded p-0.5"
                                 >
                                     {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                                 </button>
                             </div>
+                            {/* Password strength indicator */}
+                            {password.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                    <div className="flex gap-1">
+                                        {[1, 2, 3, 4].map((level) => (
+                                            <span
+                                                key={level}
+                                                className={`h-1 flex-1 rounded-full transition-colors ${
+                                                    password.length >= level * 3
+                                                        ? level <= 1 ? "bg-rose-500"
+                                                          : level <= 2 ? "bg-amber-500"
+                                                          : level <= 3 ? "bg-brand-blue-500"
+                                                          : "bg-brand-green-500"
+                                                        : "bg-white/10"
+                                                }`}
+                                            />
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-slate-500">
+                                        {password.length < 6 ? "Too short (min 6 chars)" : password.length < 9 ? "Acceptable" : password.length < 12 ? "Good" : "Strong"}
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-4 space-y-3">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-                                <ShieldCheck className="size-4 text-sky-400" /> Identity verification (Gemini)
+                                <ShieldCheck className="size-4 text-brand-blue-400" /> Identity verification (Gemini)
                             </div>
 
                             <div>
@@ -444,8 +502,8 @@ export default function RegisterPage() {
                             </div>
 
                             <RBButton type="button" variant="secondary" className="w-full" onClick={runOcr} disabled={ocrLoading || !idCardFile}>
-                                {ocrLoading ? <Loader2 className="size-4 animate-spin" /> : <ScanText className="size-4" />}
-                                {ocrLoading ? "Scanning..." : "Scan and extract"}
+                                {ocrLoading ? <Spinner size="sm" label="Scanning" /> : <ScanText className="size-4" />}
+                                {ocrLoading ? "Scanning…" : "Scan and extract"}
                             </RBButton>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -479,9 +537,33 @@ export default function RegisterPage() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 text-xs text-slate-400">
-                                <span>Scan confidence</span>
-                                <span className="font-semibold text-sky-300">{Math.round(kycData.confidenceBasic * 100)}%</span>
+                            {/* OCR confidence indicator */}
+                            <div className="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2.5 space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-400">Scan confidence</span>
+                                    <span className={`font-bold ${
+                                        kycData.confidenceBasic >= 0.8 ? "text-brand-green-400"
+                                        : kycData.confidenceBasic >= 0.5 ? "text-amber-400"
+                                        : kycData.confidenceBasic > 0 ? "text-rose-400"
+                                        : "text-slate-500"
+                                    }`}>
+                                        {Math.round(kycData.confidenceBasic * 100)}%
+                                        {kycData.confidenceBasic >= 0.8 ? " ✓ Acceptable" : kycData.confidenceBasic >= 0.5 ? " — Low" : kycData.confidenceBasic > 0 ? " ✗ Too low" : ""}
+                                    </span>
+                                </div>
+                                <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                            kycData.confidenceBasic >= 0.8 ? "bg-brand-green-500"
+                                            : kycData.confidenceBasic >= 0.5 ? "bg-amber-500"
+                                            : "bg-rose-500"
+                                        }`}
+                                        style={{ width: `${Math.round(kycData.confidenceBasic * 100)}%` }}
+                                    />
+                                </div>
+                                {kycData.confidenceBasic > 0 && kycData.confidenceBasic < 0.8 && (
+                                    <p className="text-[10px] text-amber-400/80">Minimum required: 80%. Try uploading a clearer image.</p>
+                                )}
                             </div>
 
                             <label className="flex items-start gap-2 text-xs text-slate-400">
@@ -500,8 +582,8 @@ export default function RegisterPage() {
                             disabled={loading}
                             className="w-full"
                         >
-                            {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-                            {loading ? "Creating account..." : "Create account"}
+                            {loading ? <Spinner size="sm" label="Creating account" /> : null}
+                            {loading ? "Creating account…" : "Create account"}
                         </RBButton>
                     </form>
 
@@ -516,7 +598,7 @@ export default function RegisterPage() {
 
                     <p className="text-sm text-slate-400 text-center mt-6">
                         Already have an account?{" "}
-                        <Link href="/login" className="text-green-400 hover:text-[#4D8048] font-medium transition-colors">
+                        <Link href="/login" className="text-brand-green-400 hover:text-brand-green-300 font-medium transition-colors">
                             Sign in
                         </Link>
                     </p>

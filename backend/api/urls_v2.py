@@ -12,9 +12,11 @@ from .views_v2 import (
     ValidationViewSet,
     DataRefreshViewSet,
 )
+from .views_enhanced import EnhancedTradingSignalViewSet
 
 router = DefaultRouter()
 router.register(r'signals', TradingSignalV2ViewSet, basename='signals-v2')
+router.register(r'signals-enhanced', EnhancedTradingSignalViewSet, basename='signals-enhanced')  # NEW: Full pipeline
 router.register(r'monitoring', PerformanceMonitoringViewSet, basename='monitoring-v2')
 router.register(r'explain', ExplainabilityViewSet, basename='explain-v2')
 router.register(r'backtesting', BacktestingViewSet, basename='backtesting-v2')

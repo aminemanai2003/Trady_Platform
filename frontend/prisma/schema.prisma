@@ -7,109 +7,142 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
+// ── Users ────────────────────────────────────────────────────────────────────
 model User {
-  id             String     @id @default(cuid())
-  name           String?
-  email          String     @unique
-  hashedPassword String
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  positions      Position[]
-  orders         Order[]
-  settings       UserSettings?
+  id               String           @id @default(cuid())
+  name             String?
+  email            String           @unique
+  hashedPassword   String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  positions        Position[]
+  settings         UserSettings?
   kycVerifications KycVerification[]
+
+  @@map("user")
 }
 
+// ── KYC Verification ─────────────────────────────────────────────────────────
+// Individual columns instead of the opaque extractedFields Json blob.
 model KycVerification {
-  id               Int      @id @default(autoincrement())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id])
-  status           String   @default("pending") @db.VarChar(20)
-  fullName         String?  @db.VarChar(120)
-  cinNumber        String?  @db.VarChar(40)
-  nationality      String?  @db.VarChar(60)
-  ocrText          String?  @db.Text
-  confidenceBasic  Float?
-  extractedFields  Json?
-  uploadedAt       DateTime @default(now())
-  confirmedAt      DateTime?
+  id              Int       @id @default(autoincrement())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+
+  status          String    @default("pending") @db.VarChar(20)
+
+  // Top-level OCR-extracted fields (flattened from the old Json blob)
+  fullName        String?   @db.VarChar(120)
+  cinNumber       String?   @db.VarChar(40)
+  nationality     String?   @db.VarChar(60)
+  documentCountry String?   @db.VarChar(60)
+  documentType    String?   @db.VarChar(40)
+  dateOfBirth     String?   @db.VarChar(20)
+  expirationDate  String?   @db.VarChar(20)
+
+  ocrText         String?   @db.Text
+  confidenceBasic Float?
+
+  uploadedAt      DateTime  @default(now())
+  confirmedAt     DateTime?
 
   @@index([userId])
   @@index([status])
+  @@map("kycverification")
 }
 
+// ── Trading Positions ────────────────────────────────────────────────────────
 model Position {
-  id           Int      @id @default(autoincrement())
+  id           Int       @id @default(autoincrement())
   userId       String
-  user         User     @relation(fields: [userId], references: [id])
-  pair         String   @db.VarChar(10)
-  side         String   @db.VarChar(4)
+  user         User      @relation(fields: [userId], references: [id])
+
+  pair         String    @db.VarChar(10)
+  side         String    @db.VarChar(4)   // "BUY" | "SELL"
   size         Float
   entryPrice   Float
   currentPrice Float
   stopLoss     Float?
   takeProfit   Float?
-  pnl          Float    @default(0)
-  pnlPct       Float    @default(0)
-  status       String   @default("OPEN") @db.VarChar(10)
-  openedAt     DateTime @default(now())
+  pnl          Float     @default(0)
+  pnlPct       Float     @default(0)
+  status       String    @default("OPEN") @db.VarChar(10)
+  openedAt     DateTime  @default(now())
   closedAt     DateTime?
 
   @@index([userId])
+  @@index([userId, status])   // compound – used by GET /api/positions
+  @@index([pair])
+  @@map("position")
+}
+
+// ── User Settings ────────────────────────────────────────────────────────────
+model UserSettings {
+  id                   Int     @id @default(autoincrement())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id])
+
+  // Risk management
+  maxPositionSize      Float   @default(0.5)
+  maxDailyLoss         Float   @default(500)
+  maxDrawdown          Float   @default(15)
+  maxOpenPositions     Int     @default(4)
+  minConsensus         Int     @default(2)
+  minConfidence        Float   @default(60)
+  defaultStopLoss      Float   @default(40)   // was Int – matched as Float in Position
+  defaultTakeProfit    Float   @default(80)   // was Int – matched as Float in Position
+  trailingStop         Boolean @default(false)
+
+  // Notification preferences
+  notifySignals        Boolean @default(true)
+  notifyHighConfidence Boolean @default(true)
+  notifyAgentOffline   Boolean @default(true)
+  notifyDrawdown       Boolean @default(true)
+  notifyDailySummary   Boolean @default(false)
+  notifyCalendar       Boolean @default(true)
+
+  @@map("usersettings")
+}
+
+// ── Archived / Unused models ─────────────────────────────────────────────────
+// Signal and Order are managed entirely by the Django backend (SQLite).
+// They exist in MySQL but are NOT accessed via Prisma/Next.js.
+// Use @@ignore to keep the tables intact without generating Prisma client code.
+
+model Signal {
+  id             Int      @id @default(autoincrement())
+  pair           String   @db.VarChar(10)
+  direction      String   @db.VarChar(10)
+  confidence     Float
+  macroScore     Float?
+  technicalScore Float?
+  sentimentScore Float?
+  consensusCount Int      @default(0)
+  rationale      String?  @db.Text
+  entryPrice     Float?
+  stopLoss       Float?
+  takeProfit     Float?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@ignore
+  @@map("signal")
 }
 
 model Order {
-  id        Int      @id @default(autoincrement())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  pair      String   @db.VarChar(10)
-  side      String   @db.VarChar(4)
-  type      String   @db.VarChar(10)
-  size      Float
-  price     Float?
-  stopLoss  Float?
+  id         Int      @id @default(autoincrement())
+  userId     String
+  pair       String   @db.VarChar(10)
+  side       String   @db.VarChar(4)
+  type       String   @db.VarChar(10)
+  size       Float
+  price      Float?
+  stopLoss   Float?
   takeProfit Float?
-  status    String   @default("PENDING") @db.VarChar(10)
-  createdAt DateTime @default(now())
+  status     String   @default("PENDING") @db.VarChar(10)
+  createdAt  DateTime @default(now())
 
-  @@index([userId])
-}
-
-model Signal {
-  id              Int      @id @default(autoincrement())
-  pair            String   @db.VarChar(10)
-  direction       String   @db.VarChar(10)
-  confidence      Float
-  macroScore      Float?
-  technicalScore  Float?
-  sentimentScore  Float?
-  consensusCount  Int      @default(0)
-  rationale       String?  @db.Text
-  entryPrice      Float?
-  stopLoss        Float?
-  takeProfit      Float?
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-}
-
-model UserSettings {
-  id                    Int     @id @default(autoincrement())
-  userId                String  @unique
-  user                  User    @relation(fields: [userId], references: [id])
-  maxPositionSize       Float   @default(0.5)
-  maxDailyLoss          Float   @default(500)
-  maxDrawdown           Float   @default(15)
-  maxOpenPositions      Int     @default(4)
-  minConsensus          Int     @default(2)
-  minConfidence         Float   @default(60)
-  defaultStopLoss       Int     @default(40)
-  defaultTakeProfit     Int     @default(80)
-  trailingStop          Boolean @default(false)
-  notifySignals         Boolean @default(true)
-  notifyHighConfidence  Boolean @default(true)
-  notifyAgentOffline    Boolean @default(true)
-  notifyDrawdown        Boolean @default(true)
-  notifyDailySummary    Boolean @default(false)
-  notifyCalendar        Boolean @default(true)
+  @@ignore
+  @@map("order")
 }

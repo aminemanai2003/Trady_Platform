@@ -4,6 +4,35 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ── Brand color palette (logo: #0658BA blue + #4D8048 green) ─────────────── */
+@theme {
+  /* Brand Blue — #0658BA */
+  --color-brand-blue-50:  oklch(0.960 0.018 258);
+  --color-brand-blue-100: oklch(0.905 0.042 258);
+  --color-brand-blue-200: oklch(0.825 0.082 258);
+  --color-brand-blue-300: oklch(0.730 0.130 258);
+  --color-brand-blue-400: oklch(0.615 0.168 258);
+  --color-brand-blue-500: oklch(0.500 0.190 258);
+  --color-brand-blue-600: oklch(0.430 0.190 258);
+  --color-brand-blue-700: oklch(0.360 0.170 258);
+  --color-brand-blue-800: oklch(0.285 0.140 258);
+  --color-brand-blue-900: oklch(0.205 0.100 258);
+  --color-brand-blue-950: oklch(0.140 0.068 258);
+
+  /* Brand Green — #4D8048 */
+  --color-brand-green-50:  oklch(0.968 0.018 138);
+  --color-brand-green-100: oklch(0.918 0.038 138);
+  --color-brand-green-200: oklch(0.840 0.068 138);
+  --color-brand-green-300: oklch(0.735 0.090 138);
+  --color-brand-green-400: oklch(0.628 0.100 138);
+  --color-brand-green-500: oklch(0.548 0.100 138);
+  --color-brand-green-600: oklch(0.478 0.095 138);
+  --color-brand-green-700: oklch(0.400 0.082 138);
+  --color-brand-green-800: oklch(0.318 0.068 138);
+  --color-brand-green-900: oklch(0.235 0.050 138);
+  --color-brand-green-950: oklch(0.152 0.036 138);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -124,8 +153,8 @@
   body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(circle at 12% 8%, rgba(14, 165, 233, 0.08), transparent 35%),
-      radial-gradient(circle at 88% 90%, rgba(30, 64, 175, 0.08), transparent 30%);
+      radial-gradient(circle at 12% 8%, oklch(0.43 0.19 258 / 6%), transparent 35%),
+      radial-gradient(circle at 88% 90%, oklch(0.48 0.095 138 / 6%), transparent 30%);
   }
 
   h1,
@@ -134,4 +163,37 @@
   h4 {
     font-family: var(--font-display), var(--font-manrope), sans-serif;
   }
+
+  /* Focus visible — WCAG AA ring using brand-blue */
+  :focus-visible {
+    outline: 2px solid oklch(0.50 0.190 258 / 70%);
+    outline-offset: 2px;
+  }
+}
+
+/* ── Shimmer animation for Skeleton component ────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    oklch(1 0 0 / 5%) 25%,
+    oklch(1 0 0 / 12%) 50%,
+    oklch(1 0 0 / 5%) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Smooth page transitions ─────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
 }

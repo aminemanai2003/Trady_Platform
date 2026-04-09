@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
             ...(cookie ? { cookie } : {}),
         },
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ success: false, message: "Authentication server returned an unexpected response." }));
     return NextResponse.json(data, { status: res.status });
 }
 
@@ -29,6 +29,6 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({ success: false, message: "Authentication server returned an unexpected response." }));
     return NextResponse.json(data, { status: res.status });
 }

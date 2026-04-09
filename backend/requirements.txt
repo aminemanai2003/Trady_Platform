@@ -44,6 +44,7 @@ Pillow>=10.0                  # image I/O helper
 
 # RAG Strategy Tutor
 pypdf>=4.0                    # PDF text extraction (no external binaries needed)
+faiss-cpu>=1.7                # Vector similarity search (GPU via faiss-gpu if CUDA available)
 # Embeddings + generation: Ollama (local, unlimited) + HuggingFace fallback
 # transformers and sentence-transformers already listed above
 

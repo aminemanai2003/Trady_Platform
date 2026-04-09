@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileText, Trash2, Loader2, RefreshCw, FileType2 } from "lucide-react";
+import { FileText, Trash2, Loader2, RefreshCw, FileType2, ChevronLeft, ChevronRight } from "lucide-react";
+
+const PAGE_SIZE = 20;
 
 interface Doc {
     id:          string;
@@ -18,10 +20,14 @@ interface Props {
 }
 
 export default function DocumentList({ refreshKey, onDocumentsChange }: Props) {
-    const [docs,    setDocs]    = useState<Doc[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error,   setError]   = useState("");
+    const [docs,     setDocs]     = useState<Doc[]>([]);
+    const [loading,  setLoading]  = useState(false);
+    const [error,    setError]    = useState("");
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [page,     setPage]     = useState(1);
+
+    const totalPages = Math.max(1, Math.ceil(docs.length / PAGE_SIZE));
+    const visibleDocs = docs.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     const loadDocs = useCallback(async () => {
         setLoading(true);
@@ -34,6 +40,7 @@ export default function DocumentList({ refreshKey, onDocumentsChange }: Props) {
             } else {
                 const documents = data.documents ?? [];
                 setDocs(documents);
+                setPage(1);
                 onDocumentsChange?.(documents.length);
             }
         } catch {
@@ -58,11 +65,13 @@ export default function DocumentList({ refreshKey, onDocumentsChange }: Props) {
             });
             const data = await res.json();
             if (data.deleted) {
-                setDocs((prev) => {
-                    const next = prev.filter((d) => d.id !== doc.id);
-                    onDocumentsChange?.(next.length);
-                    return next;
-                });
+                // Compute next state outside the updater to avoid triggering
+                // parent setState during React's reconciliation phase.
+                const next = docs.filter((d) => d.id !== doc.id);
+                setDocs(next);
+                onDocumentsChange?.(next.length);
+                const newTotal = Math.max(1, Math.ceil(next.length / PAGE_SIZE));
+                setPage((p) => Math.min(p, newTotal));
             } else {
                 setError(data.error ?? "Delete failed.");
             }
@@ -118,7 +127,7 @@ export default function DocumentList({ refreshKey, onDocumentsChange }: Props) {
             )}
 
             <ul className="space-y-2">
-                {docs.map((doc) => (
+                {visibleDocs.map((doc) => (
                     <li
                         key={doc.id}
                         className="flex items-start gap-3 rounded-xl bg-slate-800/60 border border-slate-700/60 px-4 py-3"
@@ -146,6 +155,31 @@ export default function DocumentList({ refreshKey, onDocumentsChange }: Props) {
                     </li>
                 ))}
             </ul>
+
+            {/* Pagination controls — only shown when there are multiple pages */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-1">
+                    <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-sky-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        <ChevronLeft className="size-3.5" /> Prev
+                    </button>
+                    <span className="text-xs text-slate-600">
+                        {page} / {totalPages}
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-sky-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Next <ChevronRight className="size-3.5" />
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

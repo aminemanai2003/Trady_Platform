@@ -6,8 +6,8 @@ services:
     image: postgres:15
     environment:
       POSTGRES_DB: forex_metadata
-      POSTGRES_USER: forex_user
-      POSTGRES_PASSWORD: forex_pass
+      POSTGRES_USER: dataminds
+      POSTGRES_PASSWORD: dataminds_secure_password
     ports:
       - "5432:5432"
     volumes:

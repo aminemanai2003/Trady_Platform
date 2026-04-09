@@ -18,8 +18,8 @@ import re
 
 logger = logging.getLogger(__name__)
 
-_CHUNK_TARGET  = 500    # target chars
-_CHUNK_MAX     = 900    # hard cap
+_CHUNK_TARGET  = 600    # target chars (~430 tokens — fits nomic-embed-text 2048 limit)
+_CHUNK_MAX     = 1000   # hard cap
 _CHUNK_OVERLAP = 100    # overlap chars
 _MIN_CHUNK_LEN = 60     # discard very short chunks
 

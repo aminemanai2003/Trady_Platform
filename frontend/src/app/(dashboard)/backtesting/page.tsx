@@ -59,7 +59,7 @@ export default function BacktestingPage() {
                     <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.03] p-1">
                         {[{id:"backtest",l:"Backtesting (DSO2.2)"},{id:"sizing",l:"Position Sizing (DSO2.3)"}].map(t => (
                             <button key={t.id} onClick={()=>setTab(t.id as "backtest" | "sizing")}
-                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-amber-600 text-white":"text-slate-400 hover:text-white"}`}>
+                                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-brand-blue-600 text-white":"text-slate-400 hover:text-white"}`}>
                                 {t.l}
                             </button>
                         ))}

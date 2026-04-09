@@ -10,7 +10,10 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({
+        success: false,
+        message: "Authentication server returned an unexpected response.",
+    }));
     const response = NextResponse.json(data, { status: res.status });
 
     // Forward Django's session cookie to the browser so that

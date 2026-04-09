@@ -106,7 +106,23 @@ def generate_and_send_otp(
         sent = send_otp_sms(phone, raw_otp)
 
     if not sent:
-        # Deactivate the token so it cannot be guessed while delivery failed
+        from django.conf import settings  # noqa: PLC0415
+        if getattr(settings, "DEBUG", False):
+            # Development fallback: print OTP to the Django console so the
+            # developer can complete 2FA without needing SMTP / Twilio configured.
+            # NEVER enable this path in production (DEBUG must be False).
+            print(  # noqa: T201
+                f"\n{'='*60}\n"
+                f"[DEV] OTP for {user.email} via {method.upper()}: {raw_otp}\n"
+                f"{'='*60}\n"
+            )
+            logger.warning(
+                "[DEV] OTP delivery failed but DEBUG=True — OTP printed to console. "
+                "Configure GMAIL_USER / TWILIO_* for real delivery."
+            )
+            return {"success": True, "message": f"[DEV] OTP printed to server console ({method} not configured)."}
+
+        # Production: deactivate the token so it cannot be guessed while delivery failed
         token.is_used = True
         token.save(update_fields=["is_used"])
         return {"success": False, "message": "Failed to deliver OTP. Please try again."}
@@ -169,7 +185,7 @@ def verify_otp(
     token.attempts += 1
     token.save(update_fields=["attempts"])
 
-    submitted_hash = _hash_otp(raw_otp.strip())
+    submitted_hash = _hash_otp(raw_otp.replace(" ", "").strip())
     # Constant-time comparison to mitigate timing-based side channels
     if not secrets.compare_digest(submitted_hash, token.token_hash):
         remaining = OTPToken.MAX_ATTEMPTS - token.attempts

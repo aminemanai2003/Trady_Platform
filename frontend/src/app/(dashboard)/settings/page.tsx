@@ -21,8 +21,9 @@ import {
     Shield,
     CheckCircle2,
     AlertTriangle,
-    Loader2,
 } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 const apiKeys = [
     { name: "FRED API Key", key: "FRED_API_KEY", status: "configured", masked: "********3f2a" },
     { name: "MetaTrader 5", key: "MT5_LOGIN", status: "configured", masked: "******5421" },
@@ -246,7 +247,7 @@ export default function SettingsPage() {
                                             <div className="text-sm font-medium">{n.label}</div>
                                             <div className="text-xs text-muted-foreground">{n.description}</div>
                                         </div>
-                                        <div className={`w-10 h-5 rounded-full flex items-center px-0.5 cursor-pointer transition-colors ${n.enabled ? "bg-emerald-600 justify-end" : "bg-muted justify-start"}`}>
+                                        <div className={`w-10 h-5 rounded-full flex items-center px-0.5 cursor-pointer transition-colors ${n.enabled ? "bg-brand-green-600 justify-end" : "bg-muted justify-start"}`}>
                                             <div className="w-4 h-4 rounded-full bg-white shadow" />
                                         </div>
                                     </div>
@@ -308,7 +309,7 @@ export default function SettingsPage() {
                                     </div>
                                     <button
                                         onClick={() => setTwoFaEnabled(v => !v)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${twoFaEnabled ? "bg-sky-600" : "bg-slate-700"}`}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 ${twoFaEnabled ? "bg-brand-blue-600" : "bg-slate-700"}`}
                                     >
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${twoFaEnabled ? "translate-x-6" : "translate-x-1"}`} />
                                     </button>
@@ -323,7 +324,7 @@ export default function SettingsPage() {
                                                 <button
                                                     key={m}
                                                     onClick={() => setTwoFaMethod(m)}
-                                                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${twoFaMethod === m ? "border-sky-500 bg-sky-500/10 text-sky-400" : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border/70"}`}
+                                                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${twoFaMethod === m ? "border-brand-blue-500/70 bg-brand-blue-500/10 text-brand-blue-400" : "border-border/40 bg-muted/20 text-muted-foreground hover:border-border/70"}`}
                                                 >
                                                     {m === "email" ? "📧 Email OTP" : m === "sms" ? "📱 SMS OTP" : "🪪 Face ID"}
                                                 </button>
@@ -347,13 +348,13 @@ export default function SettingsPage() {
                                 )}
 
                                 {saveError && (
-                                    <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-400">
+                                    <Alert variant="error" onClose={() => setSaveError("")}>
                                         {saveError}
-                                    </div>
+                                    </Alert>
                                 )}
 
                                 <RBButton onClick={save2FA} disabled={saving} size="sm" className="gap-2">
-                                    {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Shield className="size-3.5" />}
+                                    {saving ? <Spinner size="xs" aria-label="Saving…" /> : <Shield className="size-3.5" />}
                                     {saved ? "Saved!" : saving ? "Saving…" : "Save Settings"}
                                 </RBButton>
                             </CardContent>
@@ -369,7 +370,7 @@ export default function SettingsPage() {
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/20 border border-border/30">
-                                    <Shield className="size-5 text-sky-400 shrink-0" />
+                                    <Shield className="size-5 text-brand-blue-400 shrink-0" />
                                     <p className="text-xs text-muted-foreground">
                                         Your face data is encrypted with AES-256 and stored securely. Liveness detection prevents photo spoofing.
                                     </p>

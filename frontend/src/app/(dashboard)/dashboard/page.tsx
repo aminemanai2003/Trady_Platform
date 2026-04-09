@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton, SkeletonCard } from "@/components/ui/skeleton";
 import { RBContent, RBHeader } from "@/components/reactbits";
 import {
     TrendingUp,
@@ -71,7 +72,7 @@ export default function DashboardPage() {
                     <CardContent className="p-8 lg:p-10">
                         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                             <div className="flex-1">
-                                <Badge className="mb-3 bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20">
+                                <Badge className="mb-3 bg-brand-blue-500/10 text-brand-blue-600 dark:text-brand-blue-400 border-brand-blue-500/20">
                                     Production Ready
                                 </Badge>
                                 <h2 className="text-3xl lg:text-4xl font-bold mb-3">
@@ -85,7 +86,7 @@ export default function DashboardPage() {
                                     <Button
                                         onClick={() => router.push("/agents")}
                                         size="lg"
-                                        className="bg-violet-500 hover:bg-violet-600 text-white"
+                                        className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
                                     >
                                         <Bot className="size-4 mr-2" />
                                         View Agents
@@ -101,10 +102,10 @@ export default function DashboardPage() {
                                     </Button>
                                 </div>
                             </div>
-                            <div className="hidden lg:flex items-center justify-center p-8 rounded-2xl bg-gradient-to-br from-violet-500/10 to-violet-500/5 border border-violet-500/20">
+                            <div className="hidden lg:flex items-center justify-center p-8 rounded-2xl bg-gradient-to-br from-brand-blue-500/10 to-brand-blue-500/5 border border-brand-blue-500/20">
                                 <div className="relative">
-                                    <div className="absolute inset-0 bg-violet-500/20 blur-3xl rounded-full"></div>
-                                    <Bot className="size-24 text-violet-500 relative z-10" />
+                                    <div className="absolute inset-0 bg-brand-blue-500/20 blur-3xl rounded-full"></div>
+                                    <Bot className="size-24 text-brand-blue-500 relative z-10" />
                                 </div>
                             </div>
                         </div>
@@ -113,11 +114,17 @@ export default function DashboardPage() {
 
                 {/* System Performance KPIs */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    {loading ? (
+                        Array.from({ length: 4 }).map((_, i) => (
+                            <SkeletonCard key={i} />
+                        ))
+                    ) : (
+                    <>
+                    <Card className="border-border/50 bg-card/80 backdrop-blur transition-all hover:border-brand-blue-500/20 hover:shadow-brand-blue-500/5 hover:shadow-md hover:-translate-y-0.5">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="p-2.5 rounded-lg bg-emerald-500/10">
-                                    <Activity className="size-5 text-emerald-500" />
+                                <div className="p-2.5 rounded-lg bg-brand-green-500/10">
+                                    <Activity className="size-5 text-brand-green-600" />
                                 </div>
                                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     Status
@@ -127,17 +134,17 @@ export default function DashboardPage() {
                                 {health?.status === "operational" ? "OPERATIONAL" : "OFFLINE"}
                             </div>
                             <div className="mt-1 flex items-center gap-1">
-                                <div className="size-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                                <span className="text-xs text-emerald-500">All Systems Online</span>
+                                <div className="size-2 rounded-full bg-brand-green-600 animate-pulse"></div>
+                                <span className="text-xs text-brand-green-600">All Systems Online</span>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur transition-all hover:border-brand-blue-500/20 hover:shadow-brand-blue-500/5 hover:shadow-md hover:-translate-y-0.5">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="p-2.5 rounded-lg bg-blue-500/10">
-                                    <Bot className="size-5 text-blue-500" />
+                                <div className="p-2.5 rounded-lg bg-brand-blue-500/10">
+                                    <Bot className="size-5 text-brand-blue-600" />
                                 </div>
                                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     Active Agents
@@ -152,11 +159,11 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur transition-all hover:border-brand-blue-500/20 hover:shadow-brand-blue-500/5 hover:shadow-md hover:-translate-y-0.5">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="p-2.5 rounded-lg bg-violet-500/10">
-                                    <Zap className="size-5 text-violet-500" />
+                                <div className="p-2.5 rounded-lg bg-brand-blue-500/10">
+                                    <Zap className="size-5 text-brand-blue-600" />
                                 </div>
                                 <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                                     Signals Generated
@@ -167,7 +174,7 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur transition-all hover:border-amber-500/20 hover:shadow-amber-500/5 hover:shadow-md hover:-translate-y-0.5">
                         <CardContent className="p-5">
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="p-2.5 rounded-lg bg-amber-500/10">
@@ -178,11 +185,16 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                             <div className="text-2xl font-bold">{avgWinRate}%</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                                Across all agents
+                            <div className="flex items-center gap-1 mt-1">
+                                <span className="text-xs text-muted-foreground">Target</span>
+                                <span className={`text-xs font-medium ${
+                                    Number(avgWinRate) >= 55 ? "text-brand-green-500" : "text-amber-500"
+                                }`}>&gt; 55%</span>
                             </div>
                         </CardContent>
                     </Card>
+                    </>
+                    )}
                 </div>
 
                 {/* Major Currency Pairs */}
@@ -198,7 +210,7 @@ export default function DashboardPage() {
                             {pairs.map((pair) => (
                                 <div
                                     key={pair.symbol}
-                                    className="group p-5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 hover:border-violet-500/30 transition-all cursor-pointer"
+                                    className="group p-5 rounded-lg border border-border/50 bg-muted/20 hover:bg-muted/40 hover:border-brand-blue-500/30 transition-all cursor-pointer"
                                     onClick={() => router.push(`/agents?pair=${pair.symbol}`)}
                                 >
                                     <div className="flex items-center justify-between mb-3">
@@ -208,12 +220,12 @@ export default function DashboardPage() {
                                                 {pair.description}
                                             </div>
                                         </div>
-                                        <ArrowRight className="size-5 text-muted-foreground group-hover:text-violet-500 group-hover:translate-x-1 transition-all" />
+                                        <ArrowRight className="size-5 text-muted-foreground group-hover:text-brand-blue-500 group-hover:translate-x-1 transition-all" />
                                     </div>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="w-full group-hover:bg-violet-500 group-hover:text-white group-hover:border-violet-500 transition-all"
+                                        className="w-full group-hover:bg-brand-blue-600 group-hover:text-white group-hover:border-brand-blue-600 transition-all"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             router.push(`/agents?pair=${pair.symbol}`);
@@ -274,7 +286,7 @@ export default function DashboardPage() {
                                                 <div className="text-muted-foreground text-xs mb-1">
                                                     Win Rate
                                                 </div>
-                                                <div className="font-bold text-emerald-500">
+                                                <div className="font-bold text-brand-green-600 dark:text-brand-green-400">
                                                     {(perf.win_rate * 100).toFixed(1)}%
                                                 </div>
                                             </div>
@@ -290,7 +302,7 @@ export default function DashboardPage() {
                                                 <div className="text-muted-foreground text-xs mb-1">
                                                     Max Drawdown
                                                 </div>
-                                                <div className="font-bold text-rose-500">
+                                                <div className="font-bold text-destructive">
                                                     {(perf.max_drawdown * 100).toFixed(1)}%
                                                 </div>
                                             </div>
@@ -301,8 +313,8 @@ export default function DashboardPage() {
                                                 <div
                                                     className={`font-bold ${
                                                         perf.total_pnl >= 0
-                                                            ? "text-emerald-500"
-                                                            : "text-rose-500"
+                                                            ? "text-brand-green-600 dark:text-brand-green-400"
+                                                            : "text-destructive"
                                                     }`}
                                                 >
                                                     {perf.total_pnl >= 0 ? "+" : ""}
@@ -319,10 +331,10 @@ export default function DashboardPage() {
 
                 {/* Feature Highlights */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur hover:border-brand-blue-500/25 hover:-translate-y-0.5 transition-all">
                         <CardContent className="p-6">
-                            <div className="p-3 rounded-lg bg-violet-500/10 w-fit mb-4">
-                                <Bot className="size-6 text-violet-500" />
+                            <div className="p-3 rounded-lg bg-brand-blue-500/10 w-fit mb-4">
+                                <Bot className="size-6 text-brand-blue-600" />
                             </div>
                             <h3 className="font-bold text-lg mb-2">Multi-Agent System</h3>
                             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -332,10 +344,10 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur hover:border-brand-blue-500/25 hover:-translate-y-0.5 transition-all">
                         <CardContent className="p-6">
-                            <div className="p-3 rounded-lg bg-blue-500/10 w-fit mb-4">
-                                <Shield className="size-6 text-blue-500" />
+                            <div className="p-3 rounded-lg bg-brand-blue-500/10 w-fit mb-4">
+                                <Shield className="size-6 text-brand-blue-600" />
                             </div>
                             <h3 className="font-bold text-lg mb-2">Production Architecture</h3>
                             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -345,10 +357,10 @@ export default function DashboardPage() {
                         </CardContent>
                     </Card>
 
-                    <Card className="border-border/50 bg-card/80 backdrop-blur">
+                    <Card className="border-border/50 bg-card/80 backdrop-blur hover:border-brand-green-500/25 hover:-translate-y-0.5 transition-all">
                         <CardContent className="p-6">
-                            <div className="p-3 rounded-lg bg-emerald-500/10 w-fit mb-4">
-                                <Activity className="size-6 text-emerald-500" />
+                            <div className="p-3 rounded-lg bg-brand-green-500/10 w-fit mb-4">
+                                <Activity className="size-6 text-brand-green-600" />
                             </div>
                             <h3 className="font-bold text-lg mb-2">Real-Time Monitoring</h3>
                             <p className="text-sm text-muted-foreground leading-relaxed">

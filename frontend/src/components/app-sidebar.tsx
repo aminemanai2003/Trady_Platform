@@ -15,6 +15,7 @@ import {
     SidebarGroup,
     SidebarGroupLabel,
     SidebarGroupContent,
+    SidebarSeparator,
 } from "@/components/ui/sidebar";
 import {
     LayoutDashboard,
@@ -27,18 +28,42 @@ import {
     Settings,
     LogOut,
     GraduationCap,
+    Wifi,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const navItems = [
-    { title: "Dashboard",       href: "/dashboard",        icon: LayoutDashboard },
-    { title: "Trading",         href: "/trading",          icon: CandlestickChart },
-    { title: "Agent Monitor",   href: "/agents",           icon: Bot },
-    { title: "Analytics",       href: "/analytics",        icon: BarChart3 },
-    { title: "Reports",         href: "/reports",          icon: FileText },
-    { title: "Strategy Tutor",  href: "/strategy-tutor",   icon: GraduationCap },
-    { title: "Monitoring",      href: "/monitoring",       icon: Monitor },
-    { title: "Settings",        href: "/settings",         icon: Settings },
+/* ── Grouped navigation ──────────────────────────────────────────────────── */
+const navGroups = [
+    {
+        label: "Overview",
+        items: [
+            { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+        ],
+    },
+    {
+        label: "Trading",
+        items: [
+            { title: "Trading",        href: "/trading",   icon: CandlestickChart },
+            { title: "Agent Monitor",  href: "/agents",    icon: Bot },
+        ],
+    },
+    {
+        label: "Intelligence",
+        items: [
+            { title: "Analytics",       href: "/analytics",       icon: BarChart3 },
+            { title: "Reports",         href: "/reports",         icon: FileText },
+            { title: "Strategy Tutor",  href: "/strategy-tutor",  icon: GraduationCap },
+            { title: "Backtesting",     href: "/backtesting",     icon: Activity },
+        ],
+    },
+    {
+        label: "System",
+        items: [
+            { title: "Monitoring", href: "/monitoring", icon: Monitor },
+            { title: "Settings",   href: "/settings",   icon: Settings },
+        ],
+    },
 ];
 
 export function AppSidebar() {
@@ -53,6 +78,9 @@ export function AppSidebar() {
               .toUpperCase()
               .slice(0, 2)
         : session?.user?.email?.charAt(0).toUpperCase() || "U";
+
+    const displayName = session?.user?.name || "Trader";
+    const displayEmail = session?.user?.email || "";
 
     async function handleLogout() {
         await fetch("/api/django-auth/logout", { method: "POST" });
@@ -80,64 +108,87 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <SidebarGroup>
-                    <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            {navItems.map((item) => (
-                                <SidebarMenuItem key={item.title}>
-                                    <SidebarMenuButton
-                                        asChild
-                                        isActive={pathname === item.href}
-                                        tooltip={item.title}
-                                    >
-                                        <Link href={item.href}>
-                                            <item.icon />
-                                            <span>{item.title}</span>
-                                        </Link>
-                                    </SidebarMenuButton>
-                                </SidebarMenuItem>
-                            ))}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
+                {navGroups.map((group, gi) => (
+                    <SidebarGroup key={group.label}>
+                        {gi > 0 && <SidebarSeparator className="mb-2 bg-white/5" />}
+                        <SidebarGroupLabel className="text-[10px] tracking-widest uppercase text-muted-foreground/60">
+                            {group.label}
+                        </SidebarGroupLabel>
+                        <SidebarGroupContent>
+                            <SidebarMenu>
+                                {group.items.map((item) => {
+                                    const isActive = pathname === item.href;
+                                    return (
+                                        <SidebarMenuItem key={item.title}>
+                                            <SidebarMenuButton
+                                                asChild
+                                                isActive={isActive}
+                                                tooltip={item.title}
+                                                aria-current={isActive ? "page" : undefined}
+                                                className={isActive
+                                                    ? "bg-brand-blue-600/15 text-brand-blue-300 hover:bg-brand-blue-600/20 hover:text-brand-blue-200 [&_svg]:text-brand-blue-400"
+                                                    : "hover:bg-white/[0.05]"
+                                                }
+                                            >
+                                                <Link href={item.href}>
+                                                    <item.icon />
+                                                    <span>{item.title}</span>
+                                                </Link>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                    );
+                                })}
+                            </SidebarMenu>
+                        </SidebarGroupContent>
+                    </SidebarGroup>
+                ))}
             </SidebarContent>
 
             <SidebarFooter>
                 <SidebarMenu>
+                    {/* System status */}
                     <SidebarMenuItem>
-                        <div className="flex items-center gap-3 px-3 py-2 border-t border-slate-700/50">
-                            <Avatar className="h-8 w-8 border-2 border-[#4D8048]">
-                                <AvatarFallback className="bg-gradient-to-br from-[#4D8048] to-[#0658BA] text-white font-semibold text-xs">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <SidebarMenuButton size="sm" className="cursor-default opacity-70 hover:opacity-100">
+                                    <Wifi className="size-4 text-brand-green-500" />
+                                    <span className="text-xs text-muted-foreground">System Online</span>
+                                    <span className="ml-auto size-2 rounded-full bg-brand-green-500 animate-pulse" />
+                                </SidebarMenuButton>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                                All backend services operational
+                            </TooltipContent>
+                        </Tooltip>
+                    </SidebarMenuItem>
+
+                    {/* User info */}
+                    <SidebarMenuItem>
+                        <div className="flex items-center gap-3 px-3 py-2 border-t border-white/[0.07]">
+                            <Avatar className="h-8 w-8 border-2 border-brand-blue-600/50 shrink-0">
+                                <AvatarFallback className="bg-gradient-to-br from-brand-green-600 to-brand-blue-600 text-white font-semibold text-xs">
                                     {initials}
                                 </AvatarFallback>
                             </Avatar>
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-white truncate">
-                                    {session?.user?.name || "Trader"}
+                                <p className="text-sm font-semibold text-white truncate" title={displayName}>
+                                    {displayName}
                                 </p>
-                                <p className="text-xs text-slate-400 truncate">
-                                    {session?.user?.email}
+                                <p className="text-xs text-slate-400 truncate" title={displayEmail}>
+                                    {displayEmail}
                                 </p>
                             </div>
                         </div>
                     </SidebarMenuItem>
+
+                    {/* Logout */}
                     <SidebarMenuItem>
                         <SidebarMenuButton
                             onClick={() => void handleLogout()}
-                            className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                            className="text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
                         >
                             <LogOut className="size-4" />
                             <span>Log out</span>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton size="sm">
-                            <Activity className="size-4 text-[#4D8048]" />
-                            <span className="text-xs text-muted-foreground">
-                                System Online
-                            </span>
-                            <span className="ml-auto size-2 rounded-full bg-[#4D8048] animate-pulse" />
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
@@ -145,4 +196,5 @@ export function AppSidebar() {
         </Sidebar>
     );
 }
+
 

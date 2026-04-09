@@ -3,14 +3,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const rbButtonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40 disabled:pointer-events-none disabled:opacity-60",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 disabled:pointer-events-none disabled:opacity-60",
   {
     variants: {
       variant: {
-        primary: "bg-sky-600 text-white hover:bg-sky-500 shadow-sm",
-        secondary: "bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700",
-        ghost: "text-slate-200 hover:bg-slate-800/70",
-        danger: "bg-rose-600 text-white hover:bg-rose-500",
+        primary:   "bg-brand-blue-600 text-white hover:bg-brand-blue-500 active:scale-[0.97] shadow-sm hover:shadow-brand-blue-500/20 hover:shadow-md",
+        secondary: "bg-slate-800 text-slate-100 hover:bg-slate-700 border border-slate-700 active:scale-[0.97]",
+        ghost:     "text-slate-200 hover:bg-slate-800/70 active:scale-[0.97]",
+        danger:    "bg-rose-600 text-white hover:bg-rose-500 active:scale-[0.97]",
+        success:   "bg-brand-green-600 text-white hover:bg-brand-green-500 active:scale-[0.97]",
       },
       size: {
         sm: "h-8 px-3",
@@ -49,7 +50,11 @@ export function RBInput({ className, ...props }: React.InputHTMLAttributes<HTMLI
   return (
     <input
       className={cn(
-        "h-11 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/35 focus:border-sky-500/60 transition-colors",
+        "h-11 w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 text-sm text-slate-100 placeholder:text-slate-500",
+        "focus:outline-none focus:ring-2 focus:ring-brand-blue-500/35 focus:border-brand-blue-500/60",
+        "aria-invalid:ring-rose-500/30 aria-invalid:border-rose-500/60",
+        "transition-[border-color,box-shadow] duration-150",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
         className
       )}
       {...props}
@@ -65,7 +70,7 @@ export function RBPage({ className, ...props }: React.HTMLAttributes<HTMLDivElem
   return (
     <div
       className={cn(
-        "min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.08),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(30,64,175,0.08),_transparent_40%),#020617] text-slate-100",
+        "min-h-screen bg-[radial-gradient(circle_at_top_left,_oklch(0.430_0.190_258/8%),_transparent_40%),radial-gradient(circle_at_bottom_right,_oklch(0.478_0.095_138/8%),_transparent_40%),#020617] text-slate-100",
         className
       )}
       {...props}

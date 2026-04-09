@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from data_layer.timeseries_loader import TimeSeriesLoader
 from feature_layer.technical_features import TechnicalFeatureEngine
+from risk.position_sizer import PositionSizer  # Import from new location
 
 
 @dataclass
@@ -29,7 +30,9 @@ class BacktestTrade:
     pnl_pips: Optional[float] = None
 
 
-class PositionSizer:
+# PositionSizer moved to backend/risk/position_sizer.py
+# Kept here as alias for backward compatibility
+class _DeprecatedPositionSizer:
     """
     Position sizing using Kelly Criterion + ATR-based risk management (DSO2.3).
     """

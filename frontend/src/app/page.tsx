@@ -12,15 +12,15 @@ import LightPillar from "@/components/LightPillar";
 import SplashCursor from "@/components/SplashCursor";
 
 const dsos = [
-  { code: "DSO1.1", label: "Macro Agent", color: "#3b82f6", desc: "Directional bias score from -100 to +100 using FRED data: CPI, GDP, PMI, policy rates" },
-  { code: "DSO1.2", label: "Technical Agent", color: "#10b981", desc: "120 multi-timeframe features: SMA, EMA, RSI, MACD, ATR, Bollinger Bands" },
-  { code: "DSO1.3", label: "Sentiment Agent", color: "#f59e0b", desc: "FinBERT NLP on Reuters news with pair-level sentiment scoring" },
-  { code: "DSO2.1", label: "Coordinator", color: "#8b5cf6", desc: "Weighted vote: Technical 40% - Macro 35% - Sentiment 25%" },
-  { code: "DSO2.2", label: "Backtesting 5Y", color: "#f43f5e", desc: "Walk-forward validation with targets: Sharpe > 1.5, Win Rate > 55%" },
-  { code: "DSO2.3", label: "Position Sizing", color: "#22d3ee", desc: "Kelly criterion + ATR-based risk management for optimal sizing" },
+  { code: "DSO1.1", label: "Macro Agent",       color: "#0658BA", desc: "Directional bias score from -100 to +100 using FRED data: CPI, GDP, PMI, policy rates" },
+  { code: "DSO1.2", label: "Technical Agent",   color: "#4D8048", desc: "120 multi-timeframe features: SMA, EMA, RSI, MACD, ATR, Bollinger Bands" },
+  { code: "DSO1.3", label: "Sentiment Agent",   color: "#f59e0b", desc: "FinBERT NLP on Reuters news with pair-level sentiment scoring" },
+  { code: "DSO2.1", label: "Coordinator",        color: "#3b82f6", desc: "Weighted vote: Technical 40% - Macro 35% - Sentiment 25%" },
+  { code: "DSO2.2", label: "Backtesting 5Y",    color: "#f43f5e", desc: "Walk-forward validation with targets: Sharpe > 1.5, Win Rate > 55%" },
+  { code: "DSO2.3", label: "Position Sizing",   color: "#22d3ee", desc: "Kelly criterion + ATR-based risk management for optimal sizing" },
   { code: "DSO3.1", label: "Signal Validation", color: "#a78bfa", desc: "Conflict detection, quality filters, and confidence scoring" },
-  { code: "DSO4.1", label: "Data Quality", color: "#4ade80", desc: "Pipeline validation: missing values, outliers, and timestamp consistency" },
-  { code: "DSO4.2", label: "MLflow Monitoring", color: "#fb923c", desc: "Inference latency, PSI drift, and performance degradation alerts" },
+  { code: "DSO4.1", label: "Data Quality",      color: "#4D8048", desc: "Pipeline validation: missing values, outliers, and timestamp consistency" },
+  { code: "DSO4.2", label: "MLflow Monitoring", color: "#0658BA", desc: "Inference latency, PSI drift, and performance degradation alerts" },
   { code: "DSO5.1", label: "Analytics Reports", color: "#67e8f9", desc: "Structured signal history with explainable AI-agent rationale" },
 ];
 
@@ -36,16 +36,16 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#080d18] text-slate-100 overflow-hidden">
       <SplashCursor
-        COLOR_PALETTE={["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b"]}
+        COLOR_PALETTE={["#0658BA", "#4D8048", "#3b82f6", "#22d3ee"]}
         BACK_COLOR={{ r: 8 / 255, g: 13 / 255, b: 24 / 255 }}
       />
 
       <div className="fixed inset-0 z-0">
         <Particles
-          particleCount={120}
-          particleColors={["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b"]}
+          particleCount={60}
+          particleColors={["#0658BA", "#4D8048", "#3b82f6", "#22d3ee"]}
           particleBaseSize={60}
-          speed={0.5}
+          speed={0.4}
           moveParticlesOnHover
           alphaParticles
           className="w-full h-full"
@@ -54,7 +54,7 @@ export default function LandingPage() {
 
       <nav className="relative z-20 flex items-center justify-between px-8 py-5 border-b border-white/5 bg-[#080d18]/60 backdrop-blur-xl">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center bg-gradient-to-br from-[#4D8048] to-[#0658BA]">
+          <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/10 flex items-center justify-center bg-gradient-to-br from-brand-green-600 to-brand-blue-600">
             <img
               src="/logo.png"
               alt="Trady"
@@ -65,8 +65,8 @@ export default function LandingPage() {
             />
             <TrendingUp className="size-5 text-white" style={{ display: "none" }} />
           </div>
-          <ShinyText text="Trady" className="text-xl font-black" color="#e2e8f0" shineColor="#a78bfa" speed={3} />
-          <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20">
+          <ShinyText text="Trady" className="text-xl font-black" color="#e2e8f0" shineColor="#0658BA" speed={3} />
+          <span className="hidden sm:inline-block text-[10px] px-2 py-0.5 rounded-full bg-brand-blue-500/15 text-brand-blue-300 border border-brand-blue-500/20">
             DATAMINDS - ESPRIT 2025
           </span>
         </div>
@@ -74,11 +74,11 @@ export default function LandingPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/login"
-            className="px-4 py-2 rounded-lg text-sm text-slate-300 hover:text-white border border-white/10 hover:border-white/20 transition-all"
+            className="px-4 py-2 rounded-lg text-sm text-slate-300 hover:text-white border border-white/10 hover:border-brand-blue-500/40 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40"
           >
             Login
           </Link>
-          <StarBorder as="a" href="/dashboard" color="#8b5cf6" speed="4s" className="text-sm font-semibold cursor-pointer">
+          <StarBorder as="a" href="/dashboard" color="#0658BA" speed="4s" className="text-sm font-semibold cursor-pointer">
             Dashboard -&gt;
           </StarBorder>
         </div>
@@ -112,7 +112,7 @@ export default function LandingPage() {
             text="MULTI-AGENT FOREX INTELLIGENCE"
             className="text-[11px] tracking-[0.2em] font-bold uppercase"
             color="#475569"
-            shineColor="#8b5cf6"
+            shineColor="#0658BA"
             speed={4}
           />
         </motion.div>
@@ -126,7 +126,7 @@ export default function LandingPage() {
         />
 
         <motion.div className="text-lg mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }}>
-          <GradientText colors={["#8b5cf6", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6"]} className="text-lg md:text-xl font-semibold" animationSpeed={5}>
+          <GradientText colors={["#0658BA", "#4D8048", "#3b82f6", "#22d3ee", "#0658BA"]} className="text-lg md:text-xl font-semibold" animationSpeed={5}>
             EUR/USD - USD/JPY - GBP/USD - USD/CHF
           </GradientText>
         </motion.div>
@@ -137,7 +137,7 @@ export default function LandingPage() {
         </motion.p>
 
         <motion.div className="flex flex-wrap items-center justify-center gap-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }}>
-          <StarBorder as="a" href="/dashboard" color="#10b981" speed="5s" className="text-base font-bold cursor-pointer">
+          <StarBorder as="a" href="/dashboard" color="#4D8048" speed="5s" className="text-base font-bold cursor-pointer">
             <span className="flex items-center gap-2">
               <BarChart3 className="size-4" />
               Access Trady
@@ -145,21 +145,21 @@ export default function LandingPage() {
           </StarBorder>
           <Link
             href="/login"
-            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold hover:border-white/20 hover:bg-white/[0.06] transition-all text-sm"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-white/10 bg-white/[0.03] text-white font-bold hover:border-brand-blue-500/30 hover:bg-brand-blue-500/[0.06] transition-all text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40"
           >
-            <Shield className="size-4 text-violet-400" />
+            <Shield className="size-4 text-brand-blue-400" />
             Sign in
           </Link>
         </motion.div>
 
         <motion.div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mt-20" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.3 }}>
           {[
-            { v: "120", l: "Features", c: "#8b5cf6" },
-            { v: "5Y", l: "History", c: "#3b82f6" },
-            { v: "57%", l: "Win Rate", c: "#10b981" },
-            { v: "1.73", l: "Sharpe", c: "#f59e0b" },
-            { v: "3", l: "AI Agents", c: "#f43f5e" },
-            { v: "4", l: "Forex Pairs", c: "#22d3ee" },
+            { v: "120",  l: "Features", c: "#0658BA" },
+            { v: "5Y",   l: "History",  c: "#4D8048" },
+            { v: "57%",  l: "Win Rate", c: "#4D8048" },
+            { v: "1.73", l: "Sharpe",   c: "#0658BA" },
+            { v: "3",    l: "AI Agents",c: "#3b82f6"  },
+            { v: "4",    l: "Pairs",    c: "#22d3ee"  },
           ].map((s, i) => (
             <motion.div
               key={i}
@@ -179,7 +179,7 @@ export default function LandingPage() {
       <section className="relative z-10 px-6 py-20 max-w-6xl mx-auto">
         <div className="text-center mb-12">
           <BlurText text="Data Science Objectives" className="text-3xl font-bold text-white mb-3 w-full justify-center text-center" delay={50} direction="bottom" />
-          <ShinyText text="10 DSOs - 5 Business Objectives - Complete AI pipeline" className="text-sm" color="#475569" shineColor="#6366f1" speed={5} />
+          <ShinyText text="10 DSOs - 5 Business Objectives - Complete AI pipeline" className="text-sm" color="#475569" shineColor="#0658BA" speed={5} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           {dsos.map((d, i) => (

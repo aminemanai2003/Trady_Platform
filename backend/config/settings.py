@@ -67,17 +67,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database — connects to existing PostgreSQL from Data Acquisition
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "forex_metadata"),
-        "USER": os.getenv("POSTGRES_USER", "dataminds"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "dataminds_secure_password"),
-        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
+# Database — Use environment variable to switch between PostgreSQL and SQLite
+USE_POSTGRES = os.getenv("USE_POSTGRES", "False").lower() == "true"
+
+if USE_POSTGRES:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "forex_metadata"),
+            "USER": os.getenv("POSTGRES_USER", "dataminds"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD", "dataminds_secure_password"),
+            "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+            "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        }
     }
-}
+else:
+    # SQLite for development without Docker
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 # Direct database settings for core.database module
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
@@ -112,12 +123,12 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "anon": "60/minute",
         "user": "300/minute",
-        "login": "5/minute",        # brute-force guard on login endpoint
-        "otp_request": "5/10m",     # max OTP sends per 10 min per user
-        "otp_verify": "10/10m",     # max verify attempts per 10 min per IP
-        "face_enroll": "5/hour",    # enrollment attempts per hour per user
-        "face_verify": "10/10m",    # face verification attempts per 10 min per IP
-        "twofa_verify_setup": "5/10m",  # 2FA setup verification attempts per 10 min per user
+        "login": "5/minute",            # brute-force guard on login endpoint
+        "otp_request": "5/minute",      # max OTP sends per minute per user
+        "otp_verify": "10/minute",      # max verify attempts per minute per IP
+        "face_enroll": "5/hour",        # enrollment attempts per hour per user
+        "face_verify": "10/minute",     # face verification attempts per minute per IP
+        "twofa_verify_setup": "5/minute",  # 2FA setup verification attempts per minute per user
     },
 }
 

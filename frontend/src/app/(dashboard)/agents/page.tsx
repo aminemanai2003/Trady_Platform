@@ -98,7 +98,7 @@ function SignalLabContent() {
                                     onClick={() => setPair(p)}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all ${
                                         pair === p
-                                            ? "bg-violet-600 text-white shadow-lg shadow-violet-500/30"
+                                            ? "bg-brand-blue-600 text-white shadow-lg shadow-brand-blue-500/30"
                                             : "bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                                     }`}
                                 >
@@ -111,7 +111,7 @@ function SignalLabContent() {
                             whileTap={{ scale: 0.97 }}
                             onClick={generateSignal}
                             disabled={loading}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 transition-all disabled:opacity-60"
+                            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-brand-blue-600 to-brand-blue-700 text-white text-sm font-semibold shadow-lg shadow-brand-blue-500/30 hover:shadow-brand-blue-500/50 transition-all disabled:opacity-60"
                         >
                             {loading
                                 ? <><RefreshCw className="size-4 animate-spin" /> Analyzing...</>

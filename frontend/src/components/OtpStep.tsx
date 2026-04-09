@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { RBButton } from "@/components/reactbits";
 
 interface OtpStepProps {
@@ -13,11 +13,28 @@ interface OtpStepProps {
 export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps) {
     const [digits, setDigits] = useState(["", "", "", "", "", ""]);
     const [error, setError] = useState("");
+    const [resendSuccess, setResendSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
     const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
+    function fillDigits(raw: string) {
+        // Strip all whitespace and non-digits, take first 6 digits
+        const clean = raw.replace(/\D/g, "").slice(0, 6);
+        if (clean.length === 0) return false;
+        const next = [...clean.split(""), ...Array(6).fill("")].slice(0, 6) as string[];
+        setDigits(next);
+        const focusIdx = Math.min(clean.length, 5);
+        inputs.current[focusIdx]?.focus();
+        return clean.length === 6;
+    }
+
     function handleChange(idx: number, val: string) {
+        // Handle full paste coming through onChange (e.g. mobile autofill)
+        if (val.length > 1) {
+            fillDigits(val);
+            return;
+        }
         if (!/^\d?$/.test(val)) return;
         const next = [...digits];
         next[idx] = val;
@@ -32,11 +49,8 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
     }
 
     function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
-        const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-        if (text.length === 6) {
-            setDigits(text.split(""));
-            inputs.current[5]?.focus();
-        }
+        e.preventDefault();
+        fillDigits(e.clipboardData.getData("text"));
     }
 
     async function handleVerify() {
@@ -51,11 +65,11 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ otp }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (data.success) {
                 onSuccess();
             } else {
-                setError(data.message ?? "Invalid code.");
+                setError(data.message ?? "Invalid code. Please try again.");
                 setDigits(["", "", "", "", "", ""]);
                 inputs.current[0]?.focus();
             }
@@ -69,13 +83,25 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
     async function handleResend() {
         setResending(true);
         setError("");
+        setResendSuccess(false);
         try {
-            await fetch("/api/django-auth/send-otp", {
+            const res = await fetch("/api/django-auth/send-otp", {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ method }),
             });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.success !== false) {
+                setResendSuccess(true);
+                setDigits(["", "", "", "", "", ""]);
+                inputs.current[0]?.focus();
+                setTimeout(() => setResendSuccess(false), 4000);
+            } else {
+                setError(data.message ?? "Could not resend code. Try again.");
+            }
+        } catch {
+            setError("Network error. Please try again.");
         } finally {
             setResending(false);
         }
@@ -101,7 +127,7 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
                         ref={(el) => { inputs.current[i] = el; }}
                         type="text"
                         inputMode="numeric"
-                        maxLength={1}
+                        maxLength={6}
                         value={d}
                         onChange={(e) => handleChange(i, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(i, e)}
@@ -111,6 +137,8 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
                             "bg-slate-800 text-slate-100 focus:outline-none focus:ring-2 " +
                             (error
                                 ? "border-rose-500/60 focus:ring-rose-500/40"
+                                : resendSuccess
+                                ? "border-emerald-500/60 focus:ring-emerald-500/40"
                                 : "border-slate-700 focus:ring-sky-500/40")
                         }
                     />
@@ -119,6 +147,12 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
 
             {error && (
                 <p className="text-sm text-rose-400 text-center">{error}</p>
+            )}
+            {resendSuccess && !error && (
+                <p className="text-sm text-emerald-400 text-center flex items-center justify-center gap-1.5">
+                    <CheckCircle2 className="size-3.5" />
+                    New code sent — check your {method === "sms" ? "messages" : "inbox"}.
+                </p>
             )}
 
             <RBButton
@@ -133,7 +167,7 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
             <div className="flex items-center justify-between text-sm">
                 <button
                     type="button"
-                    onClick={handleFallback}
+                    onClick={onFallback}
                     className="text-slate-500 hover:text-slate-300 transition-colors"
                 >
                     Use a different method
@@ -144,11 +178,10 @@ export default function OtpStep({ method, onSuccess, onFallback }: OtpStepProps)
                     disabled={resending}
                     className="text-sky-400 hover:text-sky-300 transition-colors disabled:opacity-50"
                 >
-                    {resending ? "Resending…" : "Resend code"}
+                    {resending ? <Loader2 className="inline size-3 animate-spin mr-1" /> : null}
+                    {resending ? "Sending…" : "Resend code"}
                 </button>
             </div>
         </div>
     );
-
-    function handleFallback() { onFallback(); }
 }
