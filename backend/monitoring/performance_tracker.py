@@ -1,190 +1,180 @@
 """
-Performance Tracker - Monitor agent performance over time
+Performance Tracker — Monitor agent performance over time.
+
+Uses Django ORM against the AgentOutcome model (paper_trading app).
+No PostgreSQL dependency — everything lives in Django's default DB (SQLite).
 """
-from typing import Dict, Optional
+from typing import Dict
 from datetime import datetime, timedelta
-import pandas as pd
 import numpy as np
-from core.database import DatabaseManager
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PerformanceTracker:
     """
-    Track rolling performance metrics per agent
-    
+    Track rolling performance metrics per agent.
+
     Metrics:
-    - Sharpe Ratio (30-day rolling)
+    - Sharpe Ratio (per-trade, not annualised)
     - Win Rate
-    - Avg Profit/Loss
+    - Avg P&L
     - Max Drawdown
     """
-    
-    def __init__(self):
-        self.db = DatabaseManager()
-    
-    def record_signal_outcome(
+
+    def record_agent_outcome(
         self,
         agent_name: str,
-        signal: int,
-        entry_price: float,
-        exit_price: float,
-        timestamp: datetime
+        pair: str,
+        signal_direction: str,
+        confidence: float,
+        was_correct: bool,
+        pnl: float,
+        weight_used: float = 0.0,
+        paper_position=None,
     ):
-        """Record an agent's signal outcome"""
-        pnl = (exit_price - entry_price) / entry_price if signal == 1 else (entry_price - exit_price) / entry_price
-        
-        with self.db.get_postgres_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                INSERT INTO agent_performance_log
-                (agent_name, pair, signal_direction, confidence, was_correct, pnl, created_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (agent_name, 'EURUSD', 'BUY' if signal == 1 else 'SELL', 0.5, pnl > 0, pnl, timestamp))
-            conn.commit()
-    
+        """Record an agent's signal outcome after a paper trade settles."""
+        from paper_trading.models import AgentOutcome
+
+        AgentOutcome.objects.create(
+            agent_name=agent_name,
+            pair=pair,
+            signal_direction=signal_direction,
+            confidence=confidence,
+            was_correct=was_correct,
+            pnl=pnl,
+            weight_used=weight_used,
+            paper_position=paper_position,
+        )
+        logger.info(
+            f"AgentOutcome recorded: {agent_name} {signal_direction} {pair} "
+            f"correct={was_correct} pnl={pnl:.4f}"
+        )
+
     def get_agent_performance(
         self,
         agent_name: str,
-        days: int = 30
+        days: int = 30,
     ) -> Dict:
         """
-        Calculate rolling performance metrics
-        
+        Calculate rolling performance metrics from AgentOutcome records.
+
         Returns:
             {
                 'sharpe_ratio': float,
                 'win_rate': float,
                 'avg_pnl': float,
                 'max_drawdown': float,
-                'trade_count': int
+                'trade_count': int,
+                'avg_confidence': float,
+                'period_days_used': int,
             }
         """
+        from paper_trading.models import AgentOutcome
+
+        empty_result = {
+            'sharpe_ratio': 0.0,
+            'win_rate': 0.0,
+            'avg_pnl': 0.0,
+            'max_drawdown': 0.0,
+            'trade_count': 0,
+            'avg_confidence': 0.0,
+            'period_days_used': days,
+        }
+
+        # Expand window progressively if short period has too few records
         windows = [days, 90, 365, 3650]
-        df = pd.DataFrame()
+        qs = None
         used_days = days
 
-        with self.db.get_postgres_connection() as conn:
-            query = """
-            SELECT pnl, created_at, confidence, was_correct
-            FROM agent_performance_log
-            WHERE agent_name = %s
-            AND created_at >= %s
-            ORDER BY created_at
-            """
-
-            for window_days in windows:
-                start_date = datetime.now() - timedelta(days=window_days)
-                candidate = pd.read_sql(query, conn, params=(agent_name, start_date))
-                if not candidate.empty and candidate['pnl'].notna().any():
-                    df = candidate
-                    used_days = window_days
+        try:
+            for window in windows:
+                cutoff = datetime.now() - timedelta(days=window)
+                qs = AgentOutcome.objects.filter(
+                    agent_name=agent_name,
+                    created_at__gte=cutoff,
+                ).order_by("created_at")
+                if qs.exists():
+                    used_days = window
                     break
 
-            if df.empty:
-                # Keep latest sample even without outcomes to expose confidence/trade activity.
-                start_date = datetime.now() - timedelta(days=days)
-                df = pd.read_sql(query, conn, params=(agent_name, start_date))
-        
-        if df.empty:
+            if qs is None or not qs.exists():
+                return empty_result
+
+            records = list(qs.values("pnl", "was_correct", "confidence"))
+        except Exception as exc:
+            logger.warning(f"PerformanceTracker query failed for {agent_name}: {exc}")
+            return empty_result
+
+        # Separate outcomes with P&L from pending ones
+        pnl_records = [r for r in records if r["pnl"] is not None]
+        if not pnl_records:
+            avg_conf = np.mean([r["confidence"] for r in records]) if records else 0.0
             return {
-                'sharpe_ratio': 0.0,
-                'win_rate': 0.0,
-                'avg_pnl': 0.0,
-                'max_drawdown': 0.0,
-                'trade_count': 0,
-                'avg_confidence': 0.0,
-                'period_days_used': days,
-            }
-        
-        # Use pnl rows that are non-null for return stats
-        pnl_df = df[df['pnl'].notna()]
-        if pnl_df.empty:
-            # No outcome data yet — compute from confidence signals
-            avg_conf = float(df['confidence'].mean()) if 'confidence' in df.columns else 0.0
-            return {
-                'sharpe_ratio': 0.0,
-                'win_rate': 0.0,
-                'avg_pnl': 0.0,
-                'max_drawdown': 0.0,
-                'trade_count': len(df),
-                'avg_confidence': avg_conf,
+                **empty_result,
+                'trade_count': len(records),
+                'avg_confidence': float(avg_conf),
                 'period_days_used': used_days,
             }
-        
-        # Calculate metrics from actual outcomes
-        returns = pnl_df['pnl'].values
-        
-        sharpe = self._calculate_sharpe(returns)
-        win_rate = (returns > 0).sum() / len(returns)
-        avg_pnl = returns.mean()
-        max_dd = self._calculate_max_drawdown(returns)
-        avg_conf = float(df['confidence'].mean()) if 'confidence' in df.columns else 0.0
-        
+
+        pnls = np.array([r["pnl"] for r in pnl_records])
+        confs = np.array([r["confidence"] for r in records])
+
+        sharpe = self._calculate_sharpe(pnls)
+        win_rate = float((pnls > 0).sum() / len(pnls))
+        avg_pnl = float(pnls.mean())
+        max_dd = self._calculate_max_drawdown(pnls)
+        avg_conf = float(confs.mean()) if len(confs) > 0 else 0.0
+
         return {
             'sharpe_ratio': float(sharpe),
-            'win_rate': float(win_rate),
-            'avg_pnl': float(avg_pnl),
+            'win_rate': win_rate,
+            'avg_pnl': avg_pnl,
             'max_drawdown': float(max_dd),
-            'trade_count': len(pnl_df),
+            'trade_count': len(pnl_records),
             'avg_confidence': avg_conf,
             'period_days_used': used_days,
         }
-    
+
     @staticmethod
     def _calculate_sharpe(returns: np.ndarray, risk_free_rate: float = 0.0) -> float:
         """
-        Calculate per-trade Sharpe ratio.
-        No annualization: these are individual trade returns, not daily portfolio returns.
-        Typical range: -2 to +2 for real trading strategies.
+        Per-trade Sharpe ratio (no annualisation).
+        Typical range: -2 to +2 for real strategies.
         """
         if len(returns) < 2:
             return 0.0
-        
-        excess_returns = returns - risk_free_rate
-        if excess_returns.std() == 0:
+        excess = returns - risk_free_rate
+        std = excess.std()
+        if std == 0:
             return 0.0
-        
-        return excess_returns.mean() / excess_returns.std()
-    
+        return float(excess.mean() / std)
+
     @staticmethod
     def _calculate_max_drawdown(returns: np.ndarray) -> float:
-        """Calculate maximum drawdown"""
+        """Maximum drawdown from cumulative returns."""
         cumulative = (1 + returns).cumprod()
         running_max = np.maximum.accumulate(cumulative)
         drawdown = (cumulative - running_max) / running_max
         return float(drawdown.min())
-    
+
     def should_disable_agent(
         self,
         agent_name: str,
         min_sharpe: float = -0.5,
-        max_drawdown: float = -0.20
+        max_drawdown: float = -0.20,
     ) -> bool:
         """
-        Check if agent should be disabled due to poor performance
-        
-        Safety mechanism: Disable agents with:
-        - Sharpe < -0.5 (consistent losses)
-        - Drawdown > 20%
+        Safety: disable agents with persistent losses.
+        Sharpe < -0.5 or drawdown > 20% over last 30 days.
         """
         perf = self.get_agent_performance(agent_name, days=30)
-        
         if perf['trade_count'] < 10:
-            return False  # Need more data
-        
-        if perf['sharpe_ratio'] < min_sharpe:
-            return True
-        
-        if perf['max_drawdown'] < max_drawdown:
-            return True
-        
-        return False
-    
+            return False
+        return perf['sharpe_ratio'] < min_sharpe or perf['max_drawdown'] < max_drawdown
+
     def get_all_agents_performance(self, days: int = 30) -> Dict[str, Dict]:
-        """Get performance summary for all agents"""
-        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2']
-        
-        return {
-            agent: self.get_agent_performance(agent, days)
-            for agent in agents
-        }
+        """Get performance summary for all agents."""
+        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2', 'GeopoliticalV2']
+        return {agent: self.get_agent_performance(agent, days) for agent in agents}

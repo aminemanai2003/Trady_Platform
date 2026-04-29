@@ -86,6 +86,7 @@ export default function DashboardPage() {
                                     <Button
                                         onClick={() => router.push("/agents")}
                                         size="lg"
+                                        data-testid="dashboard-view-agents"
                                         className="bg-brand-blue-600 hover:bg-brand-blue-700 text-white"
                                     >
                                         <Bot className="size-4 mr-2" />
@@ -96,6 +97,7 @@ export default function DashboardPage() {
                                         onClick={() => router.push("/monitoring")}
                                         size="lg"
                                         variant="outline"
+                                        data-testid="dashboard-monitoring"
                                     >
                                         <Activity className="size-4 mr-2" />
                                         Monitoring Dashboard

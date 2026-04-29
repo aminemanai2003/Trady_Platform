@@ -2,6 +2,7 @@
 import { Manrope, JetBrains_Mono, Sora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { AgentCopilotPanel } from "@/components/agent-copilot/AgentCopilotPanel";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -22,6 +23,13 @@ export const metadata: Metadata = {
   title: "Trady - Multi-Agent Forex Intelligence",
   description:
     "Multi-Modal Multi-Agent Framework for Major Currency Pair Analysis and Alpha Generation.",
+  icons: {
+    icon: [
+      { url: "/logo.png", type: "image/png" },
+    ],
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -34,7 +42,10 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${sora.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          {children}
+          <AgentCopilotPanel />
+        </Providers>
       </body>
     </html>
   );

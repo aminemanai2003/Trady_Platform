@@ -46,6 +46,7 @@ export default function StrategyTutorPage() {
                         <div className="flex rounded-xl bg-slate-800/60 border border-slate-700/50 p-1 gap-1">
                             <button
                                 type="button"
+                                data-testid="tutor-tab-upload"
                                 onClick={() => setTab("upload")}
                                 className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-colors ${
                                     tab === "upload"
@@ -58,6 +59,7 @@ export default function StrategyTutorPage() {
                             </button>
                             <button
                                 type="button"
+                                data-testid="tutor-tab-docs"
                                 onClick={() => setTab("chat")}
                                 className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-colors ${
                                     tab === "chat"

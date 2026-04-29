@@ -488,14 +488,14 @@ export default function RegisterPage() {
 
                         <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-4 space-y-3">
                             <div className="flex items-center gap-2 text-sm font-semibold text-slate-200">
-                                <ShieldCheck className="size-4 text-brand-blue-400" /> Identity verification (Gemini)
+                                <ShieldCheck className="size-4 text-brand-blue-400" /> Identity verification (local OCR + LLM)
                             </div>
 
                             <div>
                                 <RBLabel>ID card image</RBLabel>
                                 <input
                                     type="file"
-                                    accept="image/png,image/jpeg,image/jpg"
+                                    accept="image/png,image/jpeg,image/jpg,image/webp,image/heic,image/heif"
                                     onChange={(e) => setIdCardFile(e.target.files?.[0] || null)}
                                     className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border file:border-slate-700 file:bg-slate-800 file:px-3 file:py-2 file:text-slate-100"
                                 />
@@ -542,27 +542,27 @@ export default function RegisterPage() {
                                 <div className="flex items-center justify-between text-xs">
                                     <span className="text-slate-400">Scan confidence</span>
                                     <span className={`font-bold ${
-                                        kycData.confidenceBasic >= 0.8 ? "text-brand-green-400"
-                                        : kycData.confidenceBasic >= 0.5 ? "text-amber-400"
+                                        kycData.confidenceBasic >= 0.6 ? "text-brand-green-400"
+                                        : kycData.confidenceBasic >= 0.35 ? "text-amber-400"
                                         : kycData.confidenceBasic > 0 ? "text-rose-400"
                                         : "text-slate-500"
                                     }`}>
                                         {Math.round(kycData.confidenceBasic * 100)}%
-                                        {kycData.confidenceBasic >= 0.8 ? " ✓ Acceptable" : kycData.confidenceBasic >= 0.5 ? " — Low" : kycData.confidenceBasic > 0 ? " ✗ Too low" : ""}
+                                        {kycData.confidenceBasic >= 0.6 ? " ✓ Acceptable" : kycData.confidenceBasic >= 0.35 ? " — Review fields" : kycData.confidenceBasic > 0 ? " ✗ Too low" : ""}
                                     </span>
                                 </div>
                                 <div className="h-1 rounded-full bg-white/10 overflow-hidden">
                                     <div
                                         className={`h-full rounded-full transition-all duration-500 ${
-                                            kycData.confidenceBasic >= 0.8 ? "bg-brand-green-500"
-                                            : kycData.confidenceBasic >= 0.5 ? "bg-amber-500"
+                                            kycData.confidenceBasic >= 0.6 ? "bg-brand-green-500"
+                                            : kycData.confidenceBasic >= 0.35 ? "bg-amber-500"
                                             : "bg-rose-500"
                                         }`}
                                         style={{ width: `${Math.round(kycData.confidenceBasic * 100)}%` }}
                                     />
                                 </div>
-                                {kycData.confidenceBasic > 0 && kycData.confidenceBasic < 0.8 && (
-                                    <p className="text-[10px] text-amber-400/80">Minimum required: 80%. Try uploading a clearer image.</p>
+                                {kycData.confidenceBasic > 0 && kycData.confidenceBasic < 0.35 && (
+                                    <p className="text-[10px] text-amber-400/80">Low scan quality. Review the fields manually before continuing.</p>
                                 )}
                             </div>
 

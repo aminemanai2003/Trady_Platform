@@ -5,6 +5,7 @@ Clean separation: data -> features -> signals -> monitoring
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from datetime import datetime
 from time import perf_counter
 
@@ -216,8 +217,8 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         }
 
     def _build_freshness_snapshot(self, request):
-        news_target = int(request.query_params.get('news_target_minutes', request.query_params.get('target_minutes', 240)))
-        ohlcv_target = int(request.query_params.get('ohlcv_target_minutes', 240))
+        news_target = int(request.query_params.get('news_target_minutes', request.query_params.get('target_minutes', 2880)))  # 48h — realistic for weekends/free API
+        ohlcv_target = int(request.query_params.get('ohlcv_target_minutes', 10080))   # 7 days — daily candles from free-tier AV
         macro_target = int(request.query_params.get('macro_target_minutes', 10080))
 
         t0 = perf_counter()
@@ -243,7 +244,7 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         )
 
         t2 = perf_counter()
-        ohlcv_last_ts = self.timeseries_loader.latest_timestamp(timeframe='1h')
+        ohlcv_last_ts = self.timeseries_loader.latest_timestamp(timeframe='1h')  # yfinance stores hourly candles
         ohlcv_query_minutes = (perf_counter() - t2) / 60.0
         ohlcv_freshness = self._generic_freshness(
             ohlcv_last_ts,
@@ -323,9 +324,9 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         days = int(request.query_params.get('days', 30))
         
         # Get performance data for each agent
-        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2']
+        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2', 'GeopoliticalV2']
         performance = {}
-        
+
         for agent_name in agents:
             perf = self.perf_tracker.get_agent_performance(agent_name=agent_name, days=days)
             performance[agent_name] = {
@@ -378,14 +379,14 @@ class PerformanceMonitoringViewSet(viewsets.ViewSet):
         GET /api/v2/monitoring/health_check/
         """
         # Get real agent performances from database
-        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2']
+        agents = ['TechnicalV2', 'MacroV2', 'SentimentV2', 'GeopoliticalV2']
         agent_performances = {}
-        
+
         for agent_name in agents:
             perf = self.perf_tracker.get_agent_performance(agent_name=agent_name, days=30)
-            agent_key = agent_name.lower().replace('v2', '')
-            agent_performances[agent_key] = {
-                'agent_type': agent_key,
+            # Use the full agent name as key so the frontend can match AGENTS config
+            agent_performances[agent_name] = {
+                'agent_type': agent_name,
                 'total_signals': perf.get('trade_count', 0),
                 'win_rate': perf.get('win_rate', 0.0),
                 'sharpe_ratio': perf.get('sharpe_ratio', 0.0),
@@ -689,54 +690,124 @@ class ValidationViewSet(viewsets.ViewSet):
 
 class DataRefreshViewSet(viewsets.ViewSet):
     """
-    Background data refresh — triggered by the frontend on page load.
-    Runs news collection in a daemon thread so it never blocks the API.
+    MCP data refresh endpoints — trigger ingestion for News, OHLCV, and Macro.
+    All jobs run in daemon threads and return 202 immediately.
     """
+    permission_classes = [AllowAny]
+    # No session/CSRF required — these are background trigger endpoints
+    authentication_classes = []
 
-    # Simple in-memory state (per process)
-    _status = {'running': False, 'last_run': None, 'last_result': None}
+    # Per-source state: {source: {running, last_run, last_result}}
+    _state = {
+        'news': {'running': False, 'last_run': None, 'last_result': None},
+        'ohlcv': {'running': False, 'last_run': None, 'last_result': None},
+        'macro': {'running': False, 'last_run': None, 'last_result': None},
+    }
+
+    # keep legacy _status alias to not break existing callers
+    @property
+    def _status(self):
+        return self._state['news']
+
+    def _run_in_background(self, source: str, fn):
+        """Helper: run fn() in a daemon thread, updating _state[source]."""
+        import threading
+
+        state = DataRefreshViewSet._state[source]
+        if state['running']:
+            return False  # already running
+
+        def _worker():
+            state['running'] = True
+            try:
+                result = fn()
+                state['last_result'] = result if result else 'success'
+            except Exception as exc:
+                state['last_result'] = f'error: {exc}'
+            finally:
+                state['running'] = False
+                state['last_run'] = datetime.now().isoformat()
+
+        threading.Thread(target=_worker, daemon=True).start()
+        return True
 
     @action(detail=False, methods=['post'])
     def refresh_news(self, request):
         """
         POST /api/v2/data/refresh_news/
-        Starts a background thread that scrapes forex news RSS feeds
-        and inserts fresh articles into PostgreSQL.
-        Returns immediately with 202 Accepted.
+        Fetches fresh financial news from NewsAPI.org → SQLite.
         """
-        import threading
+        from scheduling.collectors.newsapi_collector import collect_newsapi
 
-        if DataRefreshViewSet._status['running']:
-            return Response({
-                'status': 'already_running',
-                'message': 'News refresh already in progress',
-                'last_run': DataRefreshViewSet._status['last_run'],
-            }, status=status.HTTP_202_ACCEPTED)
+        started = self._run_in_background('news', collect_newsapi)
+        if not started:
+            return Response(
+                {'status': 'already_running', 'message': 'News refresh already in progress',
+                 'last_run': DataRefreshViewSet._state['news']['last_run']},
+                status=status.HTTP_202_ACCEPTED,
+            )
+        return Response({'status': 'started', 'message': 'News refresh running in background'},
+                        status=status.HTTP_202_ACCEPTED)
 
-        def _run():
-            DataRefreshViewSet._status['running'] = True
-            try:
-                from acquisition.news_collector import collect_news_data
-                collect_news_data()
-                DataRefreshViewSet._status['last_result'] = 'success'
-            except Exception as e:
-                DataRefreshViewSet._status['last_result'] = f'error: {e}'
-            finally:
-                DataRefreshViewSet._status['running'] = False
-                DataRefreshViewSet._status['last_run'] = datetime.now().isoformat()
+    @action(detail=False, methods=['post'])
+    def refresh_ohlcv(self, request):
+        """
+        POST /api/v2/data/refresh_ohlcv/
+        Fetches OHLCV candles from Yahoo Finance via yfinance → SQLite.
+        Uses yfinance (free, no API key, hourly data) instead of Alpha Vantage
+        to avoid the 13s/request rate-limit delay.
+        """
+        from scheduling.collectors.yfinance_collector import collect_yfinance_ohlcv
 
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
+        started = self._run_in_background('ohlcv', collect_yfinance_ohlcv)
+        if not started:
+            return Response(
+                {'status': 'already_running', 'message': 'OHLCV refresh already in progress',
+                 'last_run': DataRefreshViewSet._state['ohlcv']['last_run']},
+                status=status.HTTP_202_ACCEPTED,
+            )
+        return Response({'status': 'started', 'message': 'OHLCV refresh running in background'},
+                        status=status.HTTP_202_ACCEPTED)
 
-        return Response({
-            'status': 'started',
-            'message': 'News refresh running in background',
-        }, status=status.HTTP_202_ACCEPTED)
+    @action(detail=False, methods=['post'])
+    def refresh_macro(self, request):
+        """
+        POST /api/v2/data/refresh_macro/
+        Fetches macro indicators from FRED → SQLite.
+        """
+        from scheduling.collectors.fred_collector_sqlite import collect_fred_macro
+
+        started = self._run_in_background('macro', collect_fred_macro)
+        if not started:
+            return Response(
+                {'status': 'already_running', 'message': 'Macro refresh already in progress',
+                 'last_run': DataRefreshViewSet._state['macro']['last_run']},
+                status=status.HTTP_202_ACCEPTED,
+            )
+        return Response({'status': 'started', 'message': 'Macro refresh running in background'},
+                        status=status.HTTP_202_ACCEPTED)
 
     @action(detail=False, methods=['get'])
     def status(self, request):
         """
         GET /api/v2/data/status/
-        Returns current refresh state and last run timestamp.
+        Returns ingestion state for all three sources plus scheduler info.
         """
-        return Response(DataRefreshViewSet._status)
+        from scheduling.models import IngestionLog
+        from django.utils import timezone as dj_tz
+
+        # Last successful ingestion per source from DB
+        db_last = {}
+        for src in ('news', 'ohlcv', 'macro'):
+            log = IngestionLog.objects.filter(source=src, status__in=['success', 'partial']).first()
+            db_last[src] = log.finished_at.isoformat() if log and log.finished_at else None
+
+        return Response({
+            'sources': DataRefreshViewSet._state,
+            'db_last_success': db_last,
+            'scheduler': {
+                'news_interval_minutes': int(__import__('os').getenv('NEWS_REFRESH_MINUTES', '120')),
+                'ohlcv_interval_minutes': int(__import__('os').getenv('OHLCV_REFRESH_MINUTES', '240')),
+                'macro_daily_hour_utc': int(__import__('os').getenv('MACRO_REFRESH_HOUR', '0')),
+            },
+        })

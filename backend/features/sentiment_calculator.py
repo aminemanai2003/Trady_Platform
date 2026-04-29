@@ -8,11 +8,20 @@ from typing import Dict, List
 from datetime import datetime, timedelta
 import re
 
-from langchain_core.prompts import PromptTemplate
-
 from core.database import DatabaseManager
-from core.llm_factory import LLMFactory
 from features.models import SentimentFeatures
+
+
+class _StubLLM:
+    """No-op stub — LLMFactory removed, LLM disabled in this module"""
+    def invoke(self, prompt):
+        return "Sentiment: NEUTRAL\nConfidence: 0.5"
+
+
+class _StubPromptTemplate:
+    def __init__(self, **kwargs): pass
+    def __or__(self, other): return self
+    def format(self, **kwargs): return ""
 
 
 class SentimentFeaturesCalculator:
@@ -20,30 +29,15 @@ class SentimentFeaturesCalculator:
     
     CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'CAD', 'AUD', 'NZD']
     
-    # Sentiment classification prompt
-    SENTIMENT_PROMPT = PromptTemplate(
+    # Sentiment classification prompt — stub (LLMFactory removed)
+    SENTIMENT_PROMPT = _StubPromptTemplate(
         input_variables=["title", "content"],
-        template="""Analyze the sentiment of this financial news article.
-
-Title: {title}
-Content: {content}
-
-Classify the sentiment as:
-- POSITIVE (bullish, optimistic, good news)
-- NEGATIVE (bearish, pessimistic, bad news)
-- NEUTRAL (no clear sentiment)
-
-Also rate confidence from 0.0 to 1.0.
-
-Respond in this exact format:
-Sentiment: [POSITIVE/NEGATIVE/NEUTRAL]
-Confidence: [0.0-1.0]
-"""
+        template=""
     )
-    
+
     def __init__(self):
-        self.llm = LLMFactory.get_llm()
-        self.sentiment_chain = self.SENTIMENT_PROMPT | self.llm
+        self.llm = _StubLLM()
+        self.sentiment_chain = self.llm
     
     def calculate_all(self, start_time: str, end_time: str) -> Dict:
         """Calculate sentiment features for time period"""

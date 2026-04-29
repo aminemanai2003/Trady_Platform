@@ -22,6 +22,7 @@ INSTALLED_APPS = [
     # Third party
     "rest_framework",
     "corsheaders",
+    "channels",
     # Auth token support
     "rest_framework.authtoken",
     # Local apps
@@ -34,6 +35,8 @@ INSTALLED_APPS = [
     "notifications",
     "face_auth",
     "rag_tutor",
+    "trading_ws",
+    "paper_trading",
 ]
 
 MIDDLEWARE = [
@@ -66,6 +69,19 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "config.wsgi.application"
+ASGI_APPLICATION = "config.asgi.application"
+
+# ── Django Channels (WebSocket) ──────────────────────────────────────────────
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    }
+}
 
 # Database — Use environment variable to switch between PostgreSQL and SQLite
 USE_POSTGRES = os.getenv("USE_POSTGRES", "False").lower() == "true"
@@ -87,6 +103,9 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {
+                "timeout": 30,  # seconds — prevents 'database is locked' under concurrent threads
+            },
         }
     }
 
@@ -108,6 +127,12 @@ INFLUX_URL = INFLUXDB_URL
 INFLUX_TOKEN = INFLUXDB_TOKEN
 INFLUX_ORG = INFLUXDB_ORG
 INFLUX_BUCKET = INFLUXDB_BUCKET
+
+# Risk Manager thresholds
+# With only technical agent active (macro/sentiment/geo have no data yet),
+# aggregated confidence peaks at ~0.35. Calibrate thresholds accordingly.
+MIN_CONFIDENCE = 0.20      # was 0.50 (calibrated for single-agent scenario)
+MIN_EV_PIPS = 1.0          # was 5.0 (2 pips EV is still positive expectancy)
 
 # REST Framework
 REST_FRAMEWORK = {
@@ -150,6 +175,31 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── Logging — show MCP scheduler & collector output in console ────────────────
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+    },
+    "formatters": {
+        "simple": {
+            "format": "[{levelname}] {name}: {message}",
+            "style": "{",
+        },
+    },
+    "loggers": {
+        "scheduling": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}
 
 # ── Session security ──────────────────────────────────────────────────────────
 SESSION_COOKIE_HTTPONLY = True   # JS cannot read the session cookie

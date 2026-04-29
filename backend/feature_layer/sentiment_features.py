@@ -15,8 +15,6 @@ from typing import Dict, List, Optional
 import json
 import time
 import os
-from core.llm_factory import LLMFactory
-from langchain_core.prompts import PromptTemplate
 
 
 class SentimentFeatureEngine:
@@ -26,40 +24,16 @@ class SentimentFeatureEngine:
         self._embeddings = None
         self._llm = None
         self.enable_llm_sentiment = os.getenv("ENABLE_LLM_SENTIMENT", "false").lower() == "true"
-        
-        # Strict JSON-only prompt
-        self.sentiment_prompt = PromptTemplate(
-            input_variables=["text", "currencies"],
-            template="""Analyze this forex news for sentiment.
-
-News: {text}
-
-Currencies: {currencies}
-
-Return ONLY valid JSON with this exact format:
-{{"sentiment": <number between -1 and 1>, "relevance": <number between 0 and 1>, "explained": "<one sentence>"}}
-
-Examples:
-- Hawkish central bank: {{"sentiment": 0.8, "relevance": 0.9, "explained": "Central bank signals rate hikes"}}
-- Dovish policy: {{"sentiment": -0.7, "relevance": 0.8, "explained": "Policy easing expected"}}
-- Neutral news: {{"sentiment": 0.0, "relevance": 0.3, "explained": "Low market impact"}}
-
-JSON:"""
-        )
     
     @property
     def llm(self):
-        """Lazy-load LLM only when needed (not for pre-scored articles)"""
-        if self._llm is None:
-            self._llm = LLMFactory.get_llm()
-        return self._llm
-    
+        """LLM not available — deterministic fallback only"""
+        return None
+
     @property
     def embeddings(self):
-        """Lazy-load embeddings only when needed"""
-        if self._embeddings is None:
-            self._embeddings = LLMFactory.get_embeddings()
-        return self._embeddings
+        """Embeddings not available"""
+        return None
     
     def calculate_sentiment_batch(
         self,
@@ -155,43 +129,10 @@ JSON:"""
         max_retries: int = 3
     ) -> Dict:
         """
-        Use LLM to classify sentiment
-        
-        WITH RETRY LOGIC for invalid JSON
+        LLM-based classification disabled — delegates to fast heuristic fallback.
+        Set ENABLE_LLM_SENTIMENT=true to re-enable via direct Ollama integration.
         """
-        text = f"{title}. {content[:500]}"  # Limit tokens
-        currencies_str = ", ".join(currencies)
-        
-        for attempt in range(max_retries):
-            try:
-                prompt = self.sentiment_prompt.format(
-                    text=text,
-                    currencies=currencies_str
-                )
-                
-                response = self.llm.invoke(prompt)
-                
-                # Parse JSON
-                parsed = self._parse_llm_response(response)
-                
-                # Validate
-                if self._validate_sentiment_output(parsed):
-                    return parsed
-                
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    # Fallback to neutral
-                    return {
-                        'sentiment': 0.0,
-                        'relevance': 0.1,
-                        'explained': 'LLM parsing failed - neutral default'
-                    }
-        
-        return {
-            'sentiment': 0.0,
-            'relevance': 0.1,
-            'explained': 'Invalid LLM output - neutral default'
-        }
+        return self._classify_single_article_fast(title, content)
     
     def _parse_llm_response(self, response: str) -> Dict:
         """Parse LLM response with strict JSON extraction"""

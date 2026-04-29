@@ -83,6 +83,7 @@ export default function AnalyticsPage() {
                     <div className="flex gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/5 w-fit">
                         {TABS.map(t => (
                             <button key={t.id} onClick={() => setTab(t.id)}
+                                data-testid={`analytics-tab-${t.id}`}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${tab === t.id ? "bg-brand-blue-600 text-white shadow-lg" : "text-slate-400 hover:text-white hover:bg-white/5"}`}>
                                 <t.icon className="size-3.5" /> {t.label}
                             </button>

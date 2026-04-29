@@ -51,3 +51,10 @@ faiss-cpu>=1.7                # Vector similarity search (GPU via faiss-gpu if C
 # Production
 gunicorn>=22.0
 drf-spectacular>=0.27  # API docs
+
+# WebSocket real-time
+channels-redis>=4.2
+daphne>=4.0            # ASGI server for WebSocket support
+
+# Geopolitical agent
+feedparser>=6.0        # RSS feed parsing (optional, graceful fallback to ET)

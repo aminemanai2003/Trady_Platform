@@ -9,6 +9,9 @@ import type {
     DailyPerformance,
     FreshnessHealthV2,
     ReportSummaryResponse,
+    MasterSignalResponse,
+    PaperPosition,
+    PortfolioStats,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -143,8 +146,114 @@ export const api = {
         driftDetection: () =>
             fetcher(`/v2/monitoring/drift_detection/`),
 
-        freshnessHealth: (targetMinutes = 240) =>
-            fetcher<FreshnessHealthV2>(`/v2/monitoring/freshness_health/?target_minutes=${targetMinutes}`),
+        freshnessHealth: () =>
+            fetcher<FreshnessHealthV2>(`/v2/monitoring/freshness_health/`),  // targets set server-side (news 2880m, macro/ohlcv 10080m)
+    },
+
+    // ─── Master Unified Pipeline ─────────────────────────────────────────────
+    generateMaster: async (
+        pair: string,
+        options: { capital?: number; currentEquity?: number; currentPositions?: number } = {}
+    ): Promise<MasterSignalResponse> => {
+        const { capital = 10_000, currentEquity, currentPositions = 0 } = options;
+        try {
+            const response = await fetchWithTimeout(
+                `${API_BASE}/v2/master/generate/`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    cache: "no-store",
+                    body: JSON.stringify({
+                        pair,
+                        capital,
+                        current_equity: currentEquity ?? capital,
+                        current_positions: currentPositions,
+                    }),
+                },
+                180_000 // 3-minute timeout
+            );
+
+            if (!response.ok) {
+                let msg = "";
+                try {
+                    const payload = await response.json();
+                    msg = payload?.error || payload?.reason || "";
+                } catch { /* ignore */ }
+                throw new ApiRequestError(
+                    `Master signal failed (HTTP ${response.status})${msg ? ` — ${msg}` : ""}.`,
+                    response.status
+                );
+            }
+            return response.json();
+        } catch (error) {
+            if (error instanceof ApiRequestError) throw error;
+            if (error instanceof DOMException && error.name === "AbortError") {
+                throw new ApiRequestError("Signal generation timed out (3 min). Please retry.");
+            }
+            const details = error instanceof Error ? ` (${error.message})` : "";
+            throw new ApiRequestError(
+                `Cannot reach backend. Ensure Django runs on port 8000 with CORS enabled.${details}`
+            );
+        }
+    },
+
+    // ─── Data Ingestion ───────────────────────────────────────────────────────
+    dataIngest: {
+        refreshNews: () =>
+            fetchWithTimeout(`${API_BASE}/v2/data/refresh_news/`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+            }, 10000).then((r) => r.json()),
+
+        refreshOhlcv: () =>
+            fetchWithTimeout(`${API_BASE}/v2/data/refresh_ohlcv/`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+            }, 10000).then((r) => r.json()),
+
+        refreshMacro: () =>
+            fetchWithTimeout(`${API_BASE}/v2/data/refresh_macro/`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+            }, 10000).then((r) => r.json()),
+
+        status: () =>
+            fetcher<{
+                sources: Record<string, { running: boolean; last_run: string | null; last_result: unknown }>;
+                db_last_success: Record<string, string | null>;
+            }>(`/v2/data/status/`),
+    },
+
+    // ─── Paper Trading ────────────────────────────────────────────────────────
+    paperTrading: {
+        getPositions: () =>
+            fetcher<PaperPosition[]>("/v2/paper-trading/positions/"),
+
+        openPosition: (data: {
+            pair: string; side: "BUY" | "SELL"; size: number;
+            entry_price: number; stop_loss?: number; take_profit?: number;
+        }) =>
+            fetchWithTimeout(`${API_BASE}/v2/paper-trading/positions/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+            }).then((r) => r.json()),
+
+        closePosition: (id: number, closePrice?: number) =>
+            fetchWithTimeout(`${API_BASE}/v2/paper-trading/positions/${id}/`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(closePrice != null ? { close_price: closePrice } : {}),
+            }).then((r) => r.json()),
+
+        getHistory: (limit = 100) =>
+            fetcher<PaperPosition[]>(`/v2/paper-trading/history/?limit=${limit}`),
+
+        getStats: () =>
+            fetcher<PortfolioStats>("/v2/paper-trading/stats/"),
     },
 };
 

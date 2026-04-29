@@ -15,7 +15,8 @@ class MacroDataLoader:
         pass
 
     def latest_timestamp(self, currencies: Optional[List[str]] = None) -> Optional[datetime]:
-        """Return the latest macro data timestamp from PostgreSQL."""
+        """Return the latest macro data timestamp (best of PostgreSQL and SQLite)."""
+        pg_ts = None
         try:
             with DatabaseManager.get_postgres_connection() as conn:
                 try:
@@ -30,13 +31,29 @@ class MacroDataLoader:
                         query = "SELECT MAX(date) AS last_ts FROM macro_indicators"
                         df = pd.read_sql(query, conn)
                 except Exception:
-                    # Legacy schema fallback
                     query = "SELECT MAX(date) AS last_ts FROM economic_indicators"
                     df = pd.read_sql(query, conn)
 
-            if df.empty or df.loc[0, 'last_ts'] is None:
+                if not df.empty and df.loc[0, 'last_ts'] is not None:
+                    pg_ts = pd.to_datetime(df.loc[0, 'last_ts']).to_pydatetime().replace(tzinfo=None)
+        except Exception:
+            pass
+
+        sqlite_ts = self._sqlite_latest_timestamp()
+
+        # Return the freshest timestamp from either source
+        if pg_ts and sqlite_ts:
+            return max(pg_ts, sqlite_ts)
+        return pg_ts or sqlite_ts
+
+    def _sqlite_latest_timestamp(self) -> Optional[datetime]:
+        """Read latest macro timestamp from SQLite MacroIndicator model."""
+        try:
+            from scheduling.models import MacroIndicator
+            latest = MacroIndicator.objects.order_by('-date').values_list('date', flat=True).first()
+            if latest is None:
                 return None
-            return pd.to_datetime(df.loc[0, 'last_ts']).to_pydatetime().replace(tzinfo=None)
+            return datetime(latest.year, latest.month, latest.day)
         except Exception:
             return None
     

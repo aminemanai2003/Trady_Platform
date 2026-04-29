@@ -160,7 +160,7 @@ export default function LoginPage() {
                                 </Alert>
                             )}
 
-                            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+                            <form onSubmit={handleSubmit} id="login-form" className="space-y-4" noValidate>
                                 {/* Email */}
                                 <div>
                                     <RBLabel htmlFor={emailId}>Email</RBLabel>
@@ -226,6 +226,10 @@ export default function LoginPage() {
 
                                 <RBButton
                                     type="submit"
+                                    id="sign-in-btn"
+                                    name="sign-in"
+                                    data-testid="sign-in-btn"
+                                    aria-label="Sign in"
                                     disabled={loading}
                                     className="w-full mt-2"
                                 >

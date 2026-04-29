@@ -9,7 +9,6 @@ import re
 from difflib import SequenceMatcher
 
 from core.database import DatabaseManager
-from core.llm_factory import LLMFactory
 from validation.models import ValidationReport, DataQualityMetric
 
 
@@ -21,7 +20,7 @@ class NewsPreprocessor:
     def __init__(self, start_date: str, end_date: str):
         self.start_date = start_date
         self.end_date = end_date
-        self.embeddings_model = LLMFactory.get_embeddings()
+        self.embeddings_model = None  # LLMFactory removed — use similarity only
     
     def process(self) -> Dict:
         """Process news: deduplicate, clean, embed"""

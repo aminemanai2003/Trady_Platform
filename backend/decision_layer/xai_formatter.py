@@ -245,7 +245,23 @@ class XAIFormatter:
             if 'article_count' in features:
                 count = features['article_count']
                 key_features.append(f"{count} articles analyzed")
-        
+
+        elif agent_name == 'GeopoliticalV2':
+            risk_off = features.get('risk_off_score', 0)
+            risk_on = features.get('risk_on_score', 0)
+            total_headlines = features.get('total_headlines', 0)
+            relevant = features.get('relevant_headlines', 0)
+
+            if risk_off > risk_on:
+                key_features.append(f"Risk-off tone ({risk_off:.1f} vs {risk_on:.1f})")
+            elif risk_on > risk_off:
+                key_features.append(f"Risk-on tone ({risk_on:.1f} vs {risk_off:.1f})")
+            else:
+                key_features.append("Neutral geopolitical backdrop")
+
+            if total_headlines > 0:
+                key_features.append(f"{relevant}/{total_headlines} headlines relevant")
+
         # If no features extracted, add generic
         if not key_features:
             key_features.append("No specific features highlighted")

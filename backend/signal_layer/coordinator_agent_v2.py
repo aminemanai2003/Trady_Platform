@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from signal_layer.technical_agent_v2 import TechnicalAgentV2
 from signal_layer.macro_agent_v2 import MacroAgentV2
 from signal_layer.sentiment_agent_v2 import SentimentAgentV2
+from signal_layer.geopolitical_agent_v2 import GeopoliticalAgentV2
 from monitoring.performance_tracker import PerformanceTracker
 
 
@@ -36,14 +37,16 @@ class CoordinatorAgentV2:
         self.technical_agent = TechnicalAgentV2()
         self.macro_agent = MacroAgentV2()
         self.sentiment_agent = SentimentAgentV2()
+        self.geopolitical_agent = GeopoliticalAgentV2()
         self.performance_tracker = PerformanceTracker()
         self.correlation_engine = None  # Lazy-loaded
-        
-        # Default weights (updated dynamically)
+
+        # Default weights (updated dynamically) — total must sum to 1.0
         self.agent_weights = {
-            'TechnicalV2': 0.40,
-            'MacroV2': 0.35,
-            'SentimentV2': 0.25
+            'TechnicalV2':    0.35,
+            'MacroV2':        0.25,
+            'SentimentV2':    0.20,
+            'GeopoliticalV2': 0.20,
         }
     
     def _get_correlation_engine(self):
@@ -85,25 +88,36 @@ class CoordinatorAgentV2:
         """
         # Step 1: Collect all agent signals
         technical_signal = self.technical_agent.generate_signal(symbol)
-        
+
         # Get volatility for macro agent
-        # (Would normally calculate from recent data)
         price_volatility = self._estimate_volatility(symbol)
-        
+
         macro_signal = self.macro_agent.generate_signal(
             base_currency,
             quote_currency,
             price_volatility
         )
-        
+
         sentiment_signal = self.sentiment_agent.generate_signal(
             [base_currency, quote_currency]
         )
-        
+
+        # Geopolitical agent (free APIs, fallback to DB)
+        try:
+            geopolitical_signal = self.geopolitical_agent.generate_signal(
+                [base_currency, quote_currency]
+            )
+        except Exception:
+            geopolitical_signal = {
+                'signal': 0, 'confidence': 0.0,
+                'key_events': [], 'deterministic_reason': 'Geopolitical agent unavailable'
+            }
+
         agent_signals = {
-            'TechnicalV2': technical_signal,
-            'MacroV2': macro_signal,
-            'SentimentV2': sentiment_signal
+            'TechnicalV2':    technical_signal,
+            'MacroV2':        macro_signal,
+            'SentimentV2':    sentiment_signal,
+            'GeopoliticalV2': geopolitical_signal,
         }
         
         # Step 2: Update weights based on recent performance
@@ -200,7 +214,8 @@ class CoordinatorAgentV2:
         """
         adx = technical_signal['features_used'].get('adx', 0)
         
-        if volatility > 0.02:  # High volatility
+        # FX annual vol: normal 5-12%, high >15%, crisis >20%
+        if volatility > 0.15:  # High volatility (was 0.02 - incorrectly flagged all FX)
             return 'volatile'
         elif adx > 25:  # Strong trend
             return 'trending'
@@ -250,9 +265,10 @@ class CoordinatorAgentV2:
         )
         
         # Convert to discrete signal
-        if weighted_signal_sum > 0.25:
+        # Threshold 0.12: allows directional signal even when only 1 agent fires
+        if weighted_signal_sum > 0.12:
             final_signal = 1
-        elif weighted_signal_sum < -0.25:
+        elif weighted_signal_sum < -0.12:
             final_signal = -1
         else:
             final_signal = 0
@@ -301,7 +317,8 @@ class CoordinatorAgentV2:
             adjusted_confidence *= 0.7
         
         # Rule 3: Minimum confidence threshold
-        if adjusted_confidence < 0.3:
+        # Lowered to 0.12: avoids forcing NEUTRAL when only technical agent fires
+        if adjusted_confidence < 0.12:
             return 0, adjusted_confidence  # Force neutral
         
         return signal, adjusted_confidence

@@ -56,6 +56,7 @@ export default function MonitoringPage() {
                     <div className="flex gap-1 rounded-lg border border-white/5 bg-white/[0.03] p-1">
                         {[{id:"validation",l:"Data Validation (DSO4.1)"},{id:"mlflow",l:"MLflow Metrics (DSO4.2)"}].map(t=>(
                             <button key={t.id} onClick={()=>setTab(t.id as "validation" | "mlflow")}
+                                data-testid={`monitoring-tab-${t.id}`}
                                 className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${tab===t.id?"bg-brand-blue-600 text-white":"text-slate-400 hover:text-white"}`}>
                                 {t.l}
                             </button>

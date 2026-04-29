@@ -3,7 +3,7 @@ Actuarial Scorer Module
 Probabilistic reasoning for trading decisions
 Calculates Expected Value, P(win), Risk/Reward ratios
 """
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import numpy as np
 import logging
 
@@ -234,6 +234,12 @@ class ActuarialScorer:
         else:
             return "Positive but conditional - monitor"
     
+    # Conservative Bayesian priors — used when sample size is small
+    _PRIOR_WIN_RATE = 0.50
+    _PRIOR_AVG_WIN_PIPS = 40.0
+    _PRIOR_AVG_LOSS_PIPS = 38.0
+    _PRIOR_SAMPLE_WEIGHT = 20  # virtual prior trades for blending
+
     def get_historical_stats(
         self,
         agent_name: str = None,
@@ -242,28 +248,105 @@ class ActuarialScorer:
         lookback_days: int = 100
     ) -> Dict:
         """
-        Get historical performance statistics.
-        This would query the database for actual historical performance.
-        
+        Get historical performance statistics from closed PaperPosition records.
+
+        Uses Bayesian blending with conservative priors when sample < 20 trades,
+        so the system remains stable during cold start while still using real data.
+
         Args:
-            agent_name: Optional agent filter
-            symbol: Optional symbol filter
+            agent_name: Optional agent filter (unused for now — portfolio-level)
+            symbol: Optional symbol filter (pair)
             confidence_range: Confidence range to filter (min, max)
             lookback_days: Days to look back
-        
+
         Returns:
-            Dict with win_rate, avg_win_pips, avg_loss_pips
+            Dict with win_rate, avg_win_pips, avg_loss_pips, total_trades, etc.
         """
-        # TODO: Implement database query
-        # For now, return conservative defaults
-        logger.warning("Using default historical stats - implement database query")
-        
+        try:
+            return self._query_real_stats(symbol, confidence_range, lookback_days)
+        except Exception as exc:
+            logger.warning(f"Failed to query real stats: {exc} — using priors")
+            return self._prior_stats(confidence_range, lookback_days)
+
+    def _query_real_stats(
+        self,
+        symbol: Optional[str],
+        confidence_range: tuple,
+        lookback_days: int,
+    ) -> Dict:
+        from paper_trading.models import PaperPosition
+        from datetime import datetime, timedelta
+
+        cutoff = datetime.now() - timedelta(days=lookback_days)
+
+        qs = PaperPosition.objects.filter(
+            status="CLOSED",
+            closed_at__gte=cutoff,
+        )
+        if symbol:
+            qs = qs.filter(pair=symbol)
+
+        closed = list(qs.values("pnl", "entry_price", "current_price", "side", "pair"))
+        total_trades = len(closed)
+
+        if total_trades == 0:
+            logger.info("No closed paper trades yet — using pure priors")
+            return self._prior_stats(confidence_range, lookback_days)
+
+        # Calculate observed stats
+        wins = [t for t in closed if t["pnl"] > 0]
+        losses = [t for t in closed if t["pnl"] <= 0]
+
+        observed_wr = len(wins) / total_trades if total_trades > 0 else 0.5
+
+        def _pips(trade):
+            """Convert price diff to pips."""
+            pair = trade.get("pair", "")
+            pip_div = 0.01 if "JPY" in pair else 0.0001
+            diff = abs(trade["current_price"] - trade["entry_price"]) / pip_div
+            return diff
+
+        observed_avg_win = (
+            np.mean([_pips(t) for t in wins]) if wins else self._PRIOR_AVG_WIN_PIPS
+        )
+        observed_avg_loss = (
+            np.mean([_pips(t) for t in losses]) if losses else self._PRIOR_AVG_LOSS_PIPS
+        )
+
+        # Bayesian blending: blend observed with priors weighted by sample size
+        n = total_trades
+        p = self._PRIOR_SAMPLE_WEIGHT
+
+        blended_wr = (n * observed_wr + p * self._PRIOR_WIN_RATE) / (n + p)
+        blended_avg_win = (n * observed_avg_win + p * self._PRIOR_AVG_WIN_PIPS) / (n + p)
+        blended_avg_loss = (n * observed_avg_loss + p * self._PRIOR_AVG_LOSS_PIPS) / (n + p)
+
+        logger.info(
+            f"Actuarial stats: {total_trades} trades, "
+            f"observed_wr={observed_wr:.2f} → blended={blended_wr:.2f}, "
+            f"avg_win={blended_avg_win:.1f} pips, avg_loss={blended_avg_loss:.1f} pips"
+        )
+
         return {
-            'win_rate': 0.55,
-            'avg_win_pips': 42,
-            'avg_loss_pips': 35,
-            'total_trades': 100,
-            'sample_size': 100,
+            'win_rate': round(float(blended_wr), 4),
+            'avg_win_pips': round(float(blended_avg_win), 1),
+            'avg_loss_pips': round(float(blended_avg_loss), 1),
+            'total_trades': total_trades,
+            'sample_size': total_trades,
             'confidence_range': confidence_range,
-            'lookback_days': lookback_days
+            'lookback_days': lookback_days,
+            'source': 'paper_trades' if n >= p else 'blended_with_priors',
+        }
+
+    def _prior_stats(self, confidence_range: tuple, lookback_days: int) -> Dict:
+        """Return conservative prior estimates (no real data available)."""
+        return {
+            'win_rate': self._PRIOR_WIN_RATE,
+            'avg_win_pips': self._PRIOR_AVG_WIN_PIPS,
+            'avg_loss_pips': self._PRIOR_AVG_LOSS_PIPS,
+            'total_trades': 0,
+            'sample_size': 0,
+            'confidence_range': confidence_range,
+            'lookback_days': lookback_days,
+            'source': 'priors',
         }

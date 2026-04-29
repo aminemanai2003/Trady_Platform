@@ -336,3 +336,117 @@ export interface DriftDetectionV2 {
     timestamp: string;
 }
 
+// ─── Master Signal (unified pipeline response) ──────────────────────────────
+
+export interface AgentVote {
+    signal: SignalDirection;
+    signal_value: -1 | 0 | 1;
+    confidence: number;
+    weight: number;
+    contribution: number;
+    key_features: string[];
+    reasoning: string;
+    influence_rank: number | null;
+    // Geopolitical-specific extras
+    key_events?: string[];
+    impacted_currencies?: string[];
+}
+
+export interface XaiAgentBreakdown {
+    TechnicalV2?: AgentVote;
+    MacroV2?: AgentVote;
+    SentimentV2?: AgentVote;
+    GeopoliticalV2?: AgentVote;
+    [key: string]: AgentVote | undefined;
+}
+
+export interface MasterSignalResponse {
+    success: boolean;
+    decision: "APPROVED" | "APPROVED_MODIFIED" | "REJECTED" | "BLOCKED";
+    pair: string;
+    signal: {
+        direction: SignalDirection;
+        signal_value: -1 | 0 | 1;
+        confidence: number;
+    };
+    coordinator: {
+        weighted_score: number;
+        market_regime: string;
+        conflicts_detected: boolean;
+        conflict_description: string;
+    };
+    judge: {
+        verdict: "APPROVE" | "REJECT" | "MODIFY";
+        reasoning: string;
+        latency_ms: number;
+        from_cache: boolean;
+    };
+    actuarial: {
+        expected_value_pips: number;
+        probability_win: number;
+        probability_loss: number;
+        risk_reward_ratio: number;
+        kelly_fraction: number;
+        verdict: string;
+    };
+    execution_plan?: {
+        entry_price: number;
+        position_size: number;
+        stop_loss: number | null;
+        take_profit: number | null;
+        stop_loss_pips: number;
+        take_profit_pips: number;
+        risk_pct: number;
+    };
+    rejection?: {
+        stage: string | null;
+        reason: string | null;
+    };
+    xai: {
+        agent_breakdown: XaiAgentBreakdown;
+        human_explanation: Record<string, unknown>;
+        rejection_stage: string | null;
+        rejection_reason: string | null;
+    };
+    geopolitical_events: string[];
+    timestamp: string;
+}
+
+// ─── Paper Trading ──────────────────────────────────────────────────────────
+
+export interface PaperPosition {
+    id: number;
+    pair: PairSymbol;
+    side: "BUY" | "SELL";
+    size: number;
+    entry_price: number;
+    current_price: number;
+    stop_loss: number | null;
+    take_profit: number | null;
+    pnl: number;
+    pnl_pct: number;
+    status: "OPEN" | "CLOSED";
+    opened_at: string;
+    closed_at: string | null;
+}
+
+export interface PortfolioStats {
+    total_pnl: number;
+    total_trades: number;
+    win_rate: number;
+    sharpe_ratio: number;
+    max_drawdown: number;
+    open_positions: number;
+    total_exposure: number;
+}
+
+// ─── WebSocket price tick ────────────────────────────────────────────────────
+
+export interface PriceTick {
+    pair: string;
+    price: number;
+    bid: number;
+    ask: number;
+    timestamp: string;
+}
+

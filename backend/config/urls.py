@@ -8,9 +8,11 @@ urlpatterns = [
     path("api/", include("signals.urls")),
     path("api/", include("agents.urls")),
     path("api/", include("analytics.urls")),
-    path("api/", include("api.urls_v2")),             # V2 Architecture endpoints
+    path("api/", include("api.urls_master")),          # Master unified signal endpoint
+    path("api/", include("api.urls_v2")),             # V2 Architecture endpoints (monitoring, etc.)
     path("api/ocr/", include("ocr.urls")),            # OCR extraction pipeline
     path("api/auth/", include("notifications.urls")), # Login + OTP 2FA endpoints
     path("api/face-auth/", include("face_auth.urls")), # Face recognition 2FA
     path("api/tutor/",     include("rag_tutor.urls")),  # RAG Strategy Tutor
+    path("api/v2/paper-trading/", include("paper_trading.urls")),  # Paper Trading
 ]

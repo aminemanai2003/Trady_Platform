@@ -76,9 +76,37 @@ class TimeSeriesLoader:
                 df = pd.concat(df, ignore_index=True)
 
             if df.empty or "_time" not in df.columns:
-                return None
+                influx_ts = None
+            else:
+                influx_ts = pd.to_datetime(df.iloc[0]["_time"]).to_pydatetime().replace(tzinfo=None)
+        except Exception:
+            influx_ts = None
 
-            return pd.to_datetime(df.iloc[0]["_time"]).to_pydatetime().replace(tzinfo=None)
+        # Compare with SQLite and return the most recent timestamp
+        sqlite_ts = self._sqlite_latest_timestamp(timeframe, symbols)
+        if influx_ts is None and sqlite_ts is None:
+            return None
+        if influx_ts is None:
+            return sqlite_ts
+        if sqlite_ts is None:
+            return influx_ts
+        return max(influx_ts, sqlite_ts)
+
+    def _sqlite_latest_timestamp(
+        self,
+        timeframe: str = "1h",
+        symbols: Optional[List[str]] = None,
+    ) -> Optional[datetime]:
+        """Read latest OHLCV timestamp from SQLite OHLCVCandle model."""
+        try:
+            from scheduling.models import OHLCVCandle
+            qs = OHLCVCandle.objects.filter(timeframe=timeframe)
+            if symbols:
+                qs = qs.filter(symbol__in=symbols)
+            latest = qs.order_by('-timestamp').values_list('timestamp', flat=True).first()
+            if latest is None:
+                return None
+            return latest.replace(tzinfo=None) if latest.tzinfo else latest
         except Exception:
             return None
     
@@ -115,18 +143,32 @@ class TimeSeriesLoader:
             |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         """
         
+        result = None
         try:
             with DatabaseManager.get_influx_client() as client:
                 result = client.query_api().query_data_frame(query)
-        except Exception:
-            return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        except Exception as _influx_err:
+            import logging as _log
+            _log.getLogger(__name__).warning(f"InfluxDB unavailable ({_influx_err}), falling back to SQLite")
 
-        if result is None:
+        # ── SQLite fallback (always attempted when InfluxDB fails or returns empty) ──
+        if result is None or (isinstance(result, pd.DataFrame) and result.empty) or (isinstance(result, list) and not result):
+            try:
+                from scheduling.models import OHLCVCandle
+                qs = OHLCVCandle.objects.filter(symbol=symbol).order_by('timestamp')
+                if start_time:
+                    qs = qs.filter(timestamp__gte=start_time)
+                if end_time:
+                    qs = qs.filter(timestamp__lte=end_time)
+                rows = list(qs.values('timestamp', 'open', 'high', 'low', 'close', 'volume'))
+                if rows:
+                    return pd.DataFrame(rows)
+            except Exception as _sqlite_err:
+                import logging as _log2
+                _log2.getLogger(__name__).warning(f"SQLite OHLCV fallback failed: {_sqlite_err}")
             return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
 
         if isinstance(result, list):
-            if not result:
-                return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             frames = [f for f in result if isinstance(f, pd.DataFrame) and not f.empty]
             if not frames:
                 return pd.DataFrame(columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])

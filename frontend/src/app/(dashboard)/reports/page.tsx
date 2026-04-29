@@ -53,6 +53,7 @@ export default function ReportsPage() {
                         <div className="flex gap-1">
                             {PAIRS.map(p => (
                                 <button key={p} onClick={()=>setFilter(p)}
+                                    data-testid={`reports-filter-${p.replace(/\//g,"").toLowerCase()}`}
                                     className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${filter===p?"bg-brand-blue-600 text-white":"text-slate-500 hover:text-white border border-white/5 hover:border-white/10"}`}>
                                     {p}
                                 </button>
@@ -60,6 +61,7 @@ export default function ReportsPage() {
                         </div>
                         <a
                             href={api.reportsExportUrl(filter, 90)}
+                            data-testid="reports-export-csv"
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/10 text-xs text-slate-300 hover:bg-white/[0.08] transition-all"
                         >
                             <Download className="size-3.5"/> Export CSV

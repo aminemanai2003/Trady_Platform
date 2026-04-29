@@ -20,23 +20,17 @@ import {
 import {
     ArrowUpRight,
     ArrowDownRight,
-    Minus,
+    TrendingUp,
+    TrendingDown,
     X,
     Loader2,
     CheckCircle2,
+    BarChart2,
 } from "lucide-react";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-} from "recharts";
 import { useState, useEffect, useCallback } from "react";
 import dynamic from "next/dynamic";
-import { useSession } from "next-auth/react";
+import { api } from "@/lib/api";
+import type { PaperPosition, PortfolioStats } from "@/types";
 
 const TradingViewWidget = dynamic(
     () => import("@/components/tradingview-widget"),
@@ -44,21 +38,6 @@ const TradingViewWidget = dynamic(
 );
 
 type PairKey = "EURUSD" | "USDJPY" | "USDCHF" | "GBPUSD";
-
-interface Position {
-    id: number;
-    pair: string;
-    side: string;
-    size: number;
-    entryPrice: number;
-    currentPrice: number;
-    stopLoss: number | null;
-    takeProfit: number | null;
-    pnl: number;
-    pnlPct: number;
-    status: string;
-    openedAt: string;
-}
 
 const generateCandles = (base: number, isJpy: boolean) =>
     Array.from({ length: 80 }, (_, i) => {
@@ -89,39 +68,37 @@ export default function TradingPage() {
     const [lotSize, setLotSize] = useState(0.1);
     const [slPips, setSlPips] = useState(40);
     const [tpPips, setTpPips] = useState(80);
-    const [positions, setPositions] = useState<Position[]>([]);
+    const [positions, setPositions] = useState<PaperPosition[]>([]);
+    const [stats, setStats] = useState<PortfolioStats | null>(null);
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
 
     const data = pairConfig[selectedPair];
-    const candles = generateCandles(data.price, data.isJpy);
     const pipSize = data.isJpy ? 0.01 : 0.0001;
 
-    // Fetch positions from database
+    // Fetch positions from paper trading API
     const fetchPositions = useCallback(async () => {
         try {
-            const res = await fetch("/api/positions");
-            if (res.ok) {
-                const data = await res.json();
-                setPositions(data);
-            }
-        } catch { }
+            const [pos, st] = await Promise.all([
+                api.paperTrading.getPositions(),
+                api.paperTrading.getStats(),
+            ]);
+            setPositions(pos);
+            setStats(st);
+        } catch {}
     }, []);
 
     useEffect(() => {
-        const timer = window.setTimeout(() => {
-            void fetchPositions();
-        }, 0);
+        const timer = window.setTimeout(() => { void fetchPositions(); }, 0);
         return () => window.clearTimeout(timer);
     }, [fetchPositions]);
 
-    // Show toast notification
     const showToast = (message: string, type: string) => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
     };
 
-    // BUY or SELL - creates real position in MySQL
+    // Open position via paper trading API
     const openPosition = async (side: "BUY" | "SELL") => {
         setLoading(true);
         const price = data.price;
@@ -129,51 +106,36 @@ export default function TradingPage() {
         const tp = side === "BUY" ? price + tpPips * pipSize : price - tpPips * pipSize;
 
         try {
-            const res = await fetch("/api/positions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    pair: selectedPair,
-                    side,
-                    size: lotSize,
-                    entryPrice: price,
-                    stopLoss: +sl.toFixed(data.isJpy ? 2 : 5),
-                    takeProfit: +tp.toFixed(data.isJpy ? 2 : 5),
-                }),
+            await api.paperTrading.openPosition({
+                pair: selectedPair,
+                side,
+                size: lotSize,
+                entry_price: price,
+                stop_loss: +sl.toFixed(data.isJpy ? 2 : 5),
+                take_profit: +tp.toFixed(data.isJpy ? 2 : 5),
             });
-
-            if (res.ok) {
-                showToast(`${side} ${selectedPair} - ${lotSize} lot @ ${price}`, "success");
-                fetchPositions();
-            } else {
-                const err = await res.json();
-                showToast(err.error || "Order failed", "error");
-            }
-        } catch {
-            showToast("Network error", "error");
+            showToast(`${side} ${selectedPair} — ${lotSize} lot @ ${price}`, "success");
+            void fetchPositions();
+        } catch (err) {
+            showToast(err instanceof Error ? err.message : "Order failed", "error");
         }
         setLoading(false);
     };
 
-    // Close position
-    const closePosition = async (id: number, currentPrice: number) => {
+    // Close position via paper trading API
+    const closePosition = async (id: number) => {
+        const currentPrice = pairConfig[selectedPair]?.price ?? 0;
         try {
-            const res = await fetch("/api/positions", {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, currentPrice }),
-            });
-            if (res.ok) {
-                showToast("Position closed", "success");
-                fetchPositions();
-            }
+            await api.paperTrading.closePosition(id, currentPrice);
+            showToast("Position closed", "success");
+            void fetchPositions();
         } catch {
             showToast("Failed to close position", "error");
         }
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full" data-tour="paper-trading">
             {/* Toast */}
             {toast && (
                 <div className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-2xl text-sm font-medium animate-in slide-in-from-right ${toast.type === "success" ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
@@ -197,6 +159,26 @@ export default function TradingPage() {
             />
 
             <RBContent className="space-y-4">
+
+                {/* Portfolio Stats */}
+                {stats && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+                        {[
+                            { label: "Total P&L", value: `${stats.total_pnl >= 0 ? '+' : ''}${stats.total_pnl.toFixed(0)} pips`, color: stats.total_pnl >= 0 ? "text-emerald-400" : "text-rose-400" },
+                            { label: "Trades",    value: String(stats.total_trades),                                 color: "text-white" },
+                            { label: "Win Rate",  value: `${(stats.win_rate * 100).toFixed(1)}%`,                   color: stats.win_rate >= 0.5 ? "text-emerald-400" : "text-amber-400" },
+                            { label: "Sharpe",    value: stats.sharpe_ratio.toFixed(2),                              color: stats.sharpe_ratio >= 1 ? "text-emerald-400" : "text-slate-300" },
+                            { label: "Max DD",    value: `${(stats.max_drawdown * 100).toFixed(1)}%`,               color: "text-rose-400" },
+                            { label: "Open",      value: String(stats.open_positions),                              color: "text-blue-400" },
+                            { label: "Exposure",  value: `${stats.total_exposure.toFixed(2)} lots`,                  color: "text-violet-400" },
+                        ].map(({ label, value, color }) => (
+                            <div key={label} className="p-3 rounded-xl border border-white/5 bg-white/[0.03] text-center">
+                                <div className="text-[10px] text-slate-500 mb-1">{label}</div>
+                                <div className={`text-sm font-bold font-mono ${color}`}>{value}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
                     {/* TradingView Chart */}
                     <Card className="xl:col-span-3 border-border/50 bg-card/80 backdrop-blur">
@@ -218,10 +200,10 @@ export default function TradingPage() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <Button onClick={() => openPosition("BUY")} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                                    <Button data-page-agent-block onClick={() => openPosition("BUY")} disabled={loading} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
                                         {loading ? <Loader2 className="size-4 animate-spin" /> : <ArrowUpRight className="size-4 mr-1" />} BUY
                                     </Button>
-                                    <Button onClick={() => openPosition("SELL")} disabled={loading} className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
+                                    <Button data-page-agent-block onClick={() => openPosition("SELL")} disabled={loading} className="bg-rose-600 hover:bg-rose-700 text-white font-bold">
                                         {loading ? <Loader2 className="size-4 animate-spin" /> : <ArrowDownRight className="size-4 mr-1" />} SELL
                                     </Button>
                                 </div>
@@ -292,6 +274,7 @@ export default function TradingPage() {
                                         <TableHead>SL</TableHead>
                                         <TableHead>TP</TableHead>
                                         <TableHead>Time</TableHead>
+                                        <TableHead className="text-right">P&L</TableHead>
                                         <TableHead className="text-right">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -303,12 +286,15 @@ export default function TradingPage() {
                                                 <Badge variant="outline" className={signalMap[pos.side]}>{pos.side}</Badge>
                                             </TableCell>
                                             <TableCell className="font-mono text-xs">{pos.size}</TableCell>
-                                            <TableCell className="font-mono text-xs">{pos.entryPrice}</TableCell>
-                                            <TableCell className="font-mono text-xs text-rose-400">{pos.stopLoss || "-"}</TableCell>
-                                            <TableCell className="font-mono text-xs text-emerald-400">{pos.takeProfit || "-"}</TableCell>
-                                            <TableCell className="text-xs text-muted-foreground">{new Date(pos.openedAt).toLocaleTimeString()}</TableCell>
+                                            <TableCell className="font-mono text-xs">{pos.entry_price}</TableCell>
+                                            <TableCell className="font-mono text-xs text-rose-400">{pos.stop_loss ?? "-"}</TableCell>
+                                            <TableCell className="font-mono text-xs text-emerald-400">{pos.take_profit ?? "-"}</TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">{new Date(pos.opened_at).toLocaleTimeString()}</TableCell>
+                                            <TableCell className={`text-right font-mono text-xs font-bold ${
+                                                pos.pnl >= 0 ? "text-emerald-400" : "text-rose-400"
+                                            }`}>{pos.pnl >= 0 ? "+" : ""}{pos.pnl.toFixed(1)}</TableCell>
                                             <TableCell className="text-right">
-                                                <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => closePosition(pos.id, pairConfig[pos.pair as PairKey]?.price || pos.entryPrice)}>
+                                                <Button data-page-agent-block size="sm" variant="destructive" className="h-7 text-xs" onClick={() => closePosition(pos.id)}>
                                                     <X className="size-3 mr-1" /> Close
                                                 </Button>
                                             </TableCell>

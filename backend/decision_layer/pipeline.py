@@ -10,6 +10,7 @@ import logging
 from signal_layer.coordinator_agent_v2 import CoordinatorAgentV2
 from decision_layer.actuarial_scorer import ActuarialScorer
 from decision_layer.llm_judge import LLMJudge
+from decision_layer.llm_tool_judge import LLMToolJudge
 from decision_layer.xai_formatter import XAIFormatter
 from risk.risk_manager import RiskManager
 from data_layer.timeseries_loader import TimeSeriesLoader
@@ -45,6 +46,7 @@ class TradingDecisionPipeline:
         """
         self.coordinator = CoordinatorAgentV2()
         self.actuarial_scorer = ActuarialScorer()
+        self.llm_tool_judge = LLMToolJudge()   # Stage 2.5 — advisory only
         self.llm_judge = LLMJudge()
         self.risk_manager = RiskManager()
         self.xai_formatter = XAIFormatter()
@@ -113,12 +115,34 @@ class TradingDecisionPipeline:
                 coordinator_output,
                 historical_stats
             )
-            
+
             logger.info(
                 f"Actuarial: EV={actuarial_scores.get('expected_value_pips', 0):.2f} pips, "
                 f"P(win)={actuarial_scores.get('probability_win', 0):.2%}, "
                 f"RR={actuarial_scores.get('risk_reward_ratio', 0):.2f}"
             )
+
+            # Step 2.5: LLM Tool Judge — advisory metadata (never blocks pipeline)
+            logger.info("Step 2.5: LLMToolJudge advisory analysis")
+            tool_judge_output = self.llm_tool_judge.analyze(
+                coordinator_output,
+                actuarial_scores,
+                market_context
+            )
+            logger.info(
+                f"ToolJudge: flags={tool_judge_output.get('risk_flags')} "
+                f"adj={tool_judge_output.get('confidence_adjustment', 0):+.3f} "
+                f"({tool_judge_output.get('latency_ms', 0)}ms)"
+            )
+
+            # Apply confidence adjustment from tool judge (clamped, advisory)
+            conf_adj = tool_judge_output.get('confidence_adjustment', 0.0)
+            if conf_adj != 0.0:
+                old_conf = coordinator_output.get('confidence', 0.5)
+                coordinator_output['confidence'] = max(0.0, min(1.0, old_conf + conf_adj))
+                logger.info(
+                    f"ToolJudge adjusted confidence: {old_conf:.3f} → {coordinator_output['confidence']:.3f}"
+                )
             
             # Early rejection check
             if actuarial_scores.get('expected_value_pips', 0) < 0:
@@ -138,7 +162,8 @@ class TradingDecisionPipeline:
                         'reason': 'Skipped due to early rejection',
                         'violations': ['negative_ev']
                     },
-                    market_context
+                    market_context,
+                    tool_judge_output
                 )
             
             # Step 3: LLM Judge validation
@@ -166,7 +191,8 @@ class TradingDecisionPipeline:
                         'reason': 'Skipped due to Judge rejection',
                         'violations': judge_decision.get('rejection_criteria', [])
                     },
-                    market_context
+                    market_context,
+                    tool_judge_output
                 )
             
             # Adjust confidence if Judge modified
@@ -207,7 +233,8 @@ class TradingDecisionPipeline:
                     actuarial_scores,
                     judge_decision,
                     risk_validation,
-                    market_context
+                    market_context,
+                    tool_judge_output
                 )
             
             # Step 5: Build XAI explanation
@@ -239,6 +266,7 @@ class TradingDecisionPipeline:
                 'risk_pct': risk_validation['risk_pct'],
                 'expected_value_pips': actuarial_scores['expected_value_pips'],
                 'probability_win': actuarial_scores['probability_win'],
+                'tool_judge': tool_judge_output,
                 'xai': xai_output,
                 'timestamp': datetime.now().isoformat()
             }
@@ -259,18 +287,20 @@ class TradingDecisionPipeline:
         actuarial_scores: Dict,
         judge_decision: Dict,
         risk_validation: Dict,
-        market_context: Optional[Dict]
+        market_context: Optional[Dict],
+        tool_judge_output: Optional[Dict] = None,
     ) -> Dict:
         """
         Build rejection response with XAI.
-        
+
         Args:
-            coordinator_output: Coordinator output
-            actuarial_scores: Actuarial scores
-            judge_decision: Judge decision
-            risk_validation: Risk validation
-            market_context: Market context
-        
+            coordinator_output:  Coordinator output
+            actuarial_scores:    Actuarial scores
+            judge_decision:      Judge decision
+            risk_validation:     Risk validation
+            market_context:      Market context
+            tool_judge_output:   Advisory LLMToolJudge metadata (optional)
+
         Returns:
             Rejection response dict
         """
@@ -281,7 +311,7 @@ class TradingDecisionPipeline:
             risk_validation,
             market_context
         )
-        
+
         return {
             'status': 'rejected',
             'decision': xai_output['decision'],
@@ -291,6 +321,7 @@ class TradingDecisionPipeline:
             'confidence': coordinator_output.get('confidence', 0.5),
             'rejection_stage': xai_output.get('rejection_stage'),
             'rejection_reason': xai_output.get('rejection_reason'),
+            'tool_judge': tool_judge_output,
             'xai': xai_output,
             'timestamp': datetime.now().isoformat()
         }
@@ -298,40 +329,60 @@ class TradingDecisionPipeline:
     def _get_price_data(self, symbol: str) -> Dict:
         """
         Get current price and ATR for symbol.
-        
+
+        Fallback chain:
+          1. InfluxDB / SQLite via TimeSeriesLoader
+          2. yfinance direct call (free, no API key)
+          3. Raise — never return a fake price
+
         Args:
             symbol: Trading symbol
-        
+
         Returns:
             Dict with current_price and atr
+
+        Raises:
+            RuntimeError: if no real price data can be obtained
         """
+        # --- Attempt 1: TimeSeriesLoader (InfluxDB → SQLite) ---
         try:
-            # Load recent OHLCV data
             df = self.loader.load_ohlcv(symbol)
-            
-            if df.empty:
-                logger.warning(f"No price data for {symbol}, using defaults")
-                return {'current_price': 1.0, 'atr': 0.001}
-            
-            # Get latest price
-            current_price = float(df['close'].iloc[-1])
-            
-            # Calculate ATR (simple range-based if not available)
-            if 'atr' in df.columns:
-                atr = float(df['atr'].iloc[-1])
-            else:
-                # Simple ATR approximation: average (high - low) over last 14 periods
-                atr = (df['high'] - df['low']).tail(14).mean()
-            
-            return {
-                'current_price': current_price,
-                'atr': atr
-            }
-        
+            if not df.empty:
+                current_price = float(df['close'].iloc[-1])
+                if 'atr' in df.columns:
+                    atr = float(df['atr'].iloc[-1])
+                else:
+                    atr = float((df['high'] - df['low']).tail(14).mean())
+                logger.info(f"Price data for {symbol}: price={current_price}, atr={atr}")
+                return {'current_price': current_price, 'atr': atr}
+            logger.warning(f"TimeSeriesLoader returned empty df for {symbol}")
         except Exception as e:
-            logger.error(f"Error getting price data for {symbol}: {e}")
-            # Return safe defaults
-            return {'current_price': 1.0, 'atr': 0.001}
+            logger.warning(f"TimeSeriesLoader failed for {symbol}: {e}")
+
+        # --- Attempt 2: yfinance direct call ---
+        try:
+            import yfinance as yf
+            _TICKER_MAP = {
+                'EURUSD': 'EURUSD=X', 'USDJPY': 'USDJPY=X',
+                'GBPUSD': 'GBPUSD=X', 'USDCHF': 'USDCHF=X',
+            }
+            ticker_str = _TICKER_MAP.get(symbol, f'{symbol}=X')
+            hist = yf.Ticker(ticker_str).history(period='5d', interval='1h')
+            if hist is not None and not hist.empty:
+                current_price = float(hist['Close'].iloc[-1])
+                atr = float((hist['High'] - hist['Low']).tail(14).mean())
+                logger.info(f"yfinance fallback for {symbol}: price={current_price}, atr={atr}")
+                return {'current_price': current_price, 'atr': atr}
+            logger.warning(f"yfinance returned empty history for {symbol}")
+        except Exception as e:
+            logger.warning(f"yfinance fallback failed for {symbol}: {e}")
+
+        # --- No real price available — abort rather than using a fake price ---
+        raise RuntimeError(
+            f"Cannot obtain real price data for {symbol}. "
+            f"Both TimeSeriesLoader and yfinance failed. "
+            f"Pipeline cannot proceed with a fake entry price."
+        )
     
     def _signal_name(self, signal: int) -> str:
         """Convert signal integer to name"""

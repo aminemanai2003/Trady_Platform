@@ -142,11 +142,11 @@ export default function SettingsPage() {
             <RBContent className="space-y-6">
                 <Tabs defaultValue="api" className="space-y-4">
                     <TabsList className="bg-muted/50">
-                        <TabsTrigger value="api">API Keys</TabsTrigger>
-                        <TabsTrigger value="agents">Agent Config</TabsTrigger>
-                        <TabsTrigger value="notifications">Notifications</TabsTrigger>
-                        <TabsTrigger value="risk">Risk Management</TabsTrigger>
-                        <TabsTrigger value="security">Security</TabsTrigger>
+                        <TabsTrigger value="api" data-testid="settings-tab-api">API Keys</TabsTrigger>
+                        <TabsTrigger value="agents" data-testid="settings-tab-agents">Agent Config</TabsTrigger>
+                        <TabsTrigger value="notifications" data-testid="settings-tab-notifications">Notifications</TabsTrigger>
+                        <TabsTrigger value="risk" data-testid="settings-tab-risk">Risk Management</TabsTrigger>
+                        <TabsTrigger value="security" data-testid="settings-tab-security">Security</TabsTrigger>
                     </TabsList>
 
                     {/* API Keys Tab */}
@@ -353,7 +353,7 @@ export default function SettingsPage() {
                                     </Alert>
                                 )}
 
-                                <RBButton onClick={save2FA} disabled={saving} size="sm" className="gap-2">
+                                <RBButton onClick={save2FA} disabled={saving} size="sm" className="gap-2" data-testid="settings-save-btn">
                                     {saving ? <Spinner size="xs" aria-label="Saving…" /> : <Shield className="size-3.5" />}
                                     {saved ? "Saved!" : saving ? "Saving…" : "Save Settings"}
                                 </RBButton>
@@ -375,7 +375,7 @@ export default function SettingsPage() {
                                         Your face data is encrypted with AES-256 and stored securely. Liveness detection prevents photo spoofing.
                                     </p>
                                 </div>
-                                <RBButton variant="secondary" size="sm" onClick={() => setShowEnrollModal(true)} className="gap-2">
+                                <RBButton variant="secondary" size="sm" onClick={() => setShowEnrollModal(true)} className="gap-2" data-testid="settings-enroll-face-btn">
                                     <Camera className="size-3.5" /> Enroll Face
                                 </RBButton>
                             </CardContent>
