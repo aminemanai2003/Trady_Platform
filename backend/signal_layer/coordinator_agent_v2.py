@@ -8,14 +8,46 @@ Integrations:
 - Multi-timeframe support (DSO1.2)
 - Dynamic weight adjustment based on performance
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
+from typing_extensions import TypedDict
 import numpy as np
 from datetime import datetime, timedelta
+from langgraph.graph import StateGraph, END
 from signal_layer.technical_agent_v2 import TechnicalAgentV2
 from signal_layer.macro_agent_v2 import MacroAgentV2
 from signal_layer.sentiment_agent_v2 import SentimentAgentV2
 from signal_layer.geopolitical_agent_v2 import GeopoliticalAgentV2
 from monitoring.performance_tracker import PerformanceTracker
+
+
+class CoordinatorState(TypedDict, total=False):
+    """LangGraph state shared across all coordinator nodes."""
+    symbol: str
+    base_currency: str
+    quote_currency: str
+    # Node 1 outputs
+    technical_signal: Dict
+    price_volatility: float
+    # Node 2 outputs
+    macro_signal: Dict
+    sentiment_signal: Dict
+    geopolitical_signal: Dict
+    agent_signals: Dict
+    # Node 3 outputs
+    updated_weights: Dict
+    regime: str
+    # Node 4 outputs
+    final_signal: int
+    confidence: float
+    weighted_score: float
+    conflicts: bool
+    # Node 5 outputs
+    correlation_info: Optional[Dict]
+    # Node 6 outputs
+    explanation: str
+    deterministic_reason: str
+    # Node 7 output
+    result: Dict
 
 
 class CoordinatorAgentV2:
@@ -48,7 +80,129 @@ class CoordinatorAgentV2:
             'SentimentV2':    0.20,
             'GeopoliticalV2': 0.20,
         }
+
+        # Build the LangGraph pipeline once at startup
+        self.graph = self._build_graph()
     
+    # ── LangGraph graph builder ────────────────────────────────────────────────
+
+    def _build_graph(self):
+        """Build and compile the LangGraph StateGraph for the coordinator pipeline.
+        All nodes delegate to the existing deterministic private methods — no logic
+        is changed, only the orchestration layer is replaced.
+        """
+
+        def node_collect_technical(state: CoordinatorState) -> dict:
+            technical_signal = self.technical_agent.generate_signal(state["symbol"])
+            price_volatility = self._estimate_volatility(state["symbol"])
+            return {"technical_signal": technical_signal, "price_volatility": price_volatility}
+
+        def node_collect_market_data(state: CoordinatorState) -> dict:
+            macro_signal = self.macro_agent.generate_signal(
+                state["base_currency"], state["quote_currency"], state["price_volatility"]
+            )
+            sentiment_signal = self.sentiment_agent.generate_signal(
+                [state["base_currency"], state["quote_currency"]]
+            )
+            try:
+                geopolitical_signal = self.geopolitical_agent.generate_signal(
+                    [state["base_currency"], state["quote_currency"]]
+                )
+            except Exception:
+                geopolitical_signal = {
+                    "signal": 0, "confidence": 0.0,
+                    "key_events": [], "deterministic_reason": "Geopolitical agent unavailable",
+                }
+            agent_signals = {
+                "TechnicalV2":    state["technical_signal"],
+                "MacroV2":        macro_signal,
+                "SentimentV2":    sentiment_signal,
+                "GeopoliticalV2": geopolitical_signal,
+            }
+            return {
+                "macro_signal": macro_signal,
+                "sentiment_signal": sentiment_signal,
+                "geopolitical_signal": geopolitical_signal,
+                "agent_signals": agent_signals,
+            }
+
+        def node_compute_weights(state: CoordinatorState) -> dict:
+            updated_weights = self._calculate_dynamic_weights(state["agent_signals"])
+            regime = self._detect_market_regime(state["technical_signal"], state["price_volatility"])
+            return {"updated_weights": updated_weights, "regime": regime}
+
+        def node_aggregate_vote(state: CoordinatorState) -> dict:
+            final_signal, confidence, weighted_score = self._aggregate_signals(
+                state["agent_signals"], state["updated_weights"], state["regime"]
+            )
+            conflicts = self._detect_conflicts(state["agent_signals"])
+            final_signal, confidence = self._apply_safety_rules(
+                final_signal, confidence, conflicts, state["regime"]
+            )
+            return {
+                "final_signal": final_signal,
+                "confidence": confidence,
+                "weighted_score": weighted_score,
+                "conflicts": conflicts,
+            }
+
+        def node_validate_correlations(state: CoordinatorState) -> dict:
+            correlation_info = self._validate_with_correlations(
+                state["symbol"], state["final_signal"], state["confidence"]
+            )
+            confidence = state["confidence"]
+            if correlation_info:
+                confidence = correlation_info["adjusted_confidence"]
+            return {"correlation_info": correlation_info, "confidence": confidence}
+
+        def node_generate_explanation(state: CoordinatorState) -> dict:
+            explanation = self._generate_explanation_text(
+                state["final_signal"], state["agent_signals"],
+                state["updated_weights"], state["conflicts"]
+            )
+            deterministic_reason = self._generate_deterministic_reason(
+                state["final_signal"], state["agent_signals"], state["updated_weights"]
+            )
+            return {"explanation": explanation, "deterministic_reason": deterministic_reason}
+
+        def node_build_result(state: CoordinatorState) -> dict:
+            result = {
+                "final_signal":          state["final_signal"],
+                "confidence":            state["confidence"],
+                "weighted_score":        float(state["weighted_score"]),
+                "agent_signals":         state["agent_signals"],
+                "weights_used":          state["updated_weights"],
+                "market_regime":         state["regime"],
+                "conflicts_detected":    state["conflicts"],
+                "cross_pair_correlations": state.get("correlation_info"),
+                "deterministic_reason":  state["deterministic_reason"],
+                "explanation":           state["explanation"],
+                "timestamp":             datetime.now().isoformat(),
+            }
+            return {"result": result}
+
+        g = StateGraph(CoordinatorState)
+        g.add_node("collect_technical",      node_collect_technical)
+        g.add_node("collect_market_data",    node_collect_market_data)
+        g.add_node("compute_weights",        node_compute_weights)
+        g.add_node("aggregate_vote",         node_aggregate_vote)
+        g.add_node("validate_correlations",  node_validate_correlations)
+        g.add_node("generate_explanation",   node_generate_explanation)
+        g.add_node("build_result",           node_build_result)
+
+        g.set_entry_point("collect_technical")
+        g.add_edge("collect_technical",     "collect_market_data")
+        g.add_edge("collect_market_data",   "compute_weights")
+        g.add_edge("compute_weights",       "aggregate_vote")
+        g.add_edge("aggregate_vote",        "validate_correlations")
+        g.add_edge("validate_correlations", "generate_explanation")
+        g.add_edge("generate_explanation",  "build_result")
+        g.add_edge("build_result",          END)
+
+        return g.compile()
+
+    # ── Public API ─────────────────────────────────────────────────────────────
+
     def _get_correlation_engine(self):
         """Lazy-load cross-pair correlation engine"""
         if self.correlation_engine is None:
@@ -86,90 +240,14 @@ class CoordinatorAgentV2:
                 'explanation': str (from LLM)
             }
         """
-        # Step 1: Collect all agent signals
-        technical_signal = self.technical_agent.generate_signal(symbol)
-
-        # Get volatility for macro agent
-        price_volatility = self._estimate_volatility(symbol)
-
-        macro_signal = self.macro_agent.generate_signal(
-            base_currency,
-            quote_currency,
-            price_volatility
-        )
-
-        sentiment_signal = self.sentiment_agent.generate_signal(
-            [base_currency, quote_currency]
-        )
-
-        # Geopolitical agent (free APIs, fallback to DB)
-        try:
-            geopolitical_signal = self.geopolitical_agent.generate_signal(
-                [base_currency, quote_currency]
-            )
-        except Exception:
-            geopolitical_signal = {
-                'signal': 0, 'confidence': 0.0,
-                'key_events': [], 'deterministic_reason': 'Geopolitical agent unavailable'
-            }
-
-        agent_signals = {
-            'TechnicalV2':    technical_signal,
-            'MacroV2':        macro_signal,
-            'SentimentV2':    sentiment_signal,
-            'GeopoliticalV2': geopolitical_signal,
-        }
-        
-        # Step 2: Update weights based on recent performance
-        updated_weights = self._calculate_dynamic_weights(agent_signals)
-        
-        # Step 3: Detect market regime
-        regime = self._detect_market_regime(technical_signal, price_volatility)
-        
-        # Step 4: Weighted aggregation (PURE MATH)
-        final_signal, confidence, weighted_score = self._aggregate_signals(
-            agent_signals,
-            updated_weights,
-            regime
-        )
-        
-        # Step 5: Safety checks
-        conflicts = self._detect_conflicts(agent_signals)
-        final_signal, confidence = self._apply_safety_rules(
-            final_signal,
-            confidence,
-            conflicts,
-            regime
-        )
-        
-        # Step 5b: Cross-pair correlation validation (DSO1.3)
-        correlation_info = self._validate_with_correlations(symbol, final_signal, confidence)
-        if correlation_info:
-            confidence = correlation_info['adjusted_confidence']
-        
-        # Step 6: Generate explanation (LLM used ONLY here)
-        explanation = self._generate_explanation_text(
-            final_signal,
-            agent_signals,
-            updated_weights,
-            conflicts
-        )
-        
-        return {
-            'final_signal': final_signal,
-            'confidence': confidence,
-            'weighted_score': float(weighted_score),
-            'agent_signals': agent_signals,
-            'weights_used': updated_weights,
-            'market_regime': regime,
-            'conflicts_detected': conflicts,
-            'cross_pair_correlations': correlation_info,
-            'deterministic_reason': self._generate_deterministic_reason(
-                final_signal, agent_signals, updated_weights
-            ),
-            'explanation': explanation,  # Natural language from LLM
-            'timestamp': datetime.now().isoformat()
-        }
+        # Delegate to the compiled LangGraph pipeline.
+        # All logic is unchanged — nodes call the same private methods.
+        state = self.graph.invoke({
+            "symbol":         symbol,
+            "base_currency":  base_currency,
+            "quote_currency": quote_currency,
+        })
+        return state["result"]
     
     def _calculate_dynamic_weights(self, agent_signals: Dict) -> Dict[str, float]:
         """

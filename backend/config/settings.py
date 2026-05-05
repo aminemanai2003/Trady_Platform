@@ -9,7 +9,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key-change-in-production")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+_allowed_hosts_default = "localhost,127.0.0.1"
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", _allowed_hosts_default).split(",")
+# Allow all *.trycloudflare.com subdomains (Cloudflare Tunnel 0€)
+if not any("trycloudflare" in h for h in ALLOWED_HOSTS):
+    ALLOWED_HOSTS += [".trycloudflare.com"]
 
 # Application definition
 INSTALLED_APPS = [
@@ -163,6 +167,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
+# Accept Cloudflare Tunnel URLs dynamically (trycloudflare.com or custom domain)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://[a-z0-9-]+\.trycloudflare\.com$",
+]
+# If a custom tunnel URL is set via env var, add it to the list
+_tunnel_frontend_url = os.getenv("CLOUDFLARE_TUNNEL_FRONTEND_URL", "")
+if _tunnel_frontend_url:
+    CORS_ALLOWED_ORIGINS.append(_tunnel_frontend_url)
 CORS_ALLOW_CREDENTIALS = True   # allow cookies to be forwarded by the Next.js proxy
 
 # LLM / Agent settings

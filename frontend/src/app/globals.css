@@ -185,6 +185,62 @@ html.dyslexic-font * {
   line-height: 1.7;
 }
 
+/* ── Color-blind simulation (SVG filter approach) ────────────────────────── */
+/* Inject the SVG filters into the page via CSS (browsers that support filter) */
+html.cb-deuteranopia { filter: url('#cb-deuteranopia-filter'); }
+html.cb-protanopia   { filter: url('#cb-protanopia-filter');   }
+html.cb-tritanopia   { filter: url('#cb-tritanopia-filter');   }
+
+/* Fallback: hue-rotate approximations for browsers without SVG filter support */
+@supports not (filter: url('#x')) {
+  html.cb-deuteranopia { filter: hue-rotate(35deg) saturate(0.7); }
+  html.cb-protanopia   { filter: hue-rotate(60deg) saturate(0.65); }
+  html.cb-tritanopia   { filter: hue-rotate(180deg) saturate(0.8); }
+}
+
+/* ── Cursor size ─────────────────────────────────────────────────────────── */
+html.cursor-large * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpath d='M8 2l16 20H16l-3 8L8 2z' fill='white' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E") 8 2, auto !important;
+}
+html.cursor-x-large * {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M12 3l24 30H24l-4.5 12L12 3z' fill='white' stroke='black' stroke-width='2'/%3E%3C/svg%3E") 12 3, auto !important;
+}
+
+/* ── Highlight links ─────────────────────────────────────────────────────── */
+html.highlight-links a,
+html.highlight-links [role="link"] {
+  outline: 2px solid oklch(0.75 0.18 250) !important;
+  outline-offset: 2px;
+  background-color: oklch(0.43 0.19 258 / 12%) !important;
+  border-radius: 3px;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+}
+
+/* ── Line spacing ────────────────────────────────────────────────────────── */
+html.line-spacing-relaxed body,
+html.line-spacing-relaxed p,
+html.line-spacing-relaxed li,
+html.line-spacing-relaxed td,
+html.line-spacing-relaxed th,
+html.line-spacing-relaxed div {
+  line-height: 1.9 !important;
+}
+
+html.line-spacing-loose body,
+html.line-spacing-loose p,
+html.line-spacing-loose li,
+html.line-spacing-loose td,
+html.line-spacing-loose th,
+html.line-spacing-loose div {
+  line-height: 2.4 !important;
+}
+
+/* ── TTS speaking indicator ──────────────────────────────────────────────── */
+html.tts-speaking ::selection {
+  background-color: oklch(0.43 0.19 258 / 40%);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

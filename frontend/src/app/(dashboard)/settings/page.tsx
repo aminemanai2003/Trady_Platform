@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import {
@@ -24,8 +24,7 @@ import {
 } from "lucide-react";
 import { Alert } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
-import { useAccessibility, type FontScale, type ContrastMode } from "@/components/accessibility-provider";
-
+import { useAccessibility, type FontScale, type ContrastMode, type ColorBlindMode, type CursorSize, type LineSpacing } from "@/components/accessibility-provider";
 const apiKeys = [
     { name: "FRED API Key", key: "FRED_API_KEY", status: "configured", masked: "********3f2a" },
     { name: "MetaTrader 5", key: "MT5_LOGIN", status: "configured", masked: "******5421" },
@@ -60,7 +59,7 @@ export default function SettingsPage() {
     const [saving,          setSaving]          = useState(false);
     const [saved,           setSaved]           = useState(false);
     const [saveError,       setSaveError]       = useState("");
-    const { fontScale, contrast, reducedMotion, dyslexicFont, setFontScale, setContrast, setReducedMotion, setDyslexicFont, resetAccessibility } = useAccessibility();
+    const { fontScale, contrast, reducedMotion, dyslexicFont, setFontScale, setContrast, setReducedMotion, setDyslexicFont, resetAccessibility, textToSpeech, colorBlindMode, cursorSize, highlightLinks, lineSpacing, isSpeaking, setTextToSpeech, setColorBlindMode, setCursorSize, setHighlightLinks, setLineSpacing, speak, stopSpeech } = useAccessibility();
 
     useEffect(() => {
         let active = true;
@@ -388,12 +387,14 @@ export default function SettingsPage() {
 
                     {/* Accessibility Tab */}
                     <TabsContent value="accessibility" className="space-y-4">
+
+                        {/* Vision */}
                         <Card className="border-border/50 bg-card/80 backdrop-blur">
                             <CardHeader>
                                 <CardTitle className="text-sm flex items-center gap-2">
-                                    <Shield className="size-4" /> Accessibility
+                                    <Shield className="size-4" /> Vision
                                 </CardTitle>
-                                <CardDescription>Adjust readability and motion preferences (stored locally in this browser)</CardDescription>
+                                <CardDescription>Font, contrast and color-vision adjustments</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-5">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -404,14 +405,12 @@ export default function SettingsPage() {
                                             value={String(fontScale)}
                                             onChange={(e) => setFontScale(Number(e.target.value) as FontScale)}
                                         >
-                                            <option value="1">Default</option>
-                                            <option value="1.1">Large</option>
-                                            <option value="1.2">Extra large</option>
-                                            <option value="1.3">Huge</option>
+                                            <option value="1">Default (100%)</option>
+                                            <option value="1.1">Large (110%)</option>
+                                            <option value="1.2">Extra large (120%)</option>
+                                            <option value="1.3">Huge (130%)</option>
                                         </select>
-                                        <div className="text-xs text-muted-foreground">
-                                            Scales the base UI text size across the app.
-                                        </div>
+                                        <p className="text-xs text-muted-foreground">Scales the base UI text size across the app.</p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -424,52 +423,167 @@ export default function SettingsPage() {
                                             <option value="default">Default</option>
                                             <option value="high">High contrast</option>
                                         </select>
-                                        <div className="text-xs text-muted-foreground">
-                                            Boosts legibility by strengthening borders and muted text.
-                                        </div>
+                                        <p className="text-xs text-muted-foreground">Boosts legibility by strengthening borders and muted text.</p>
                                     </div>
+
+                                    <div className="space-y-2">
+                                        <RBLabel className="text-xs text-muted-foreground">Color vision mode</RBLabel>
+                                        <select
+                                            className="w-full rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm"
+                                            value={colorBlindMode}
+                                            onChange={(e) => setColorBlindMode(e.target.value as ColorBlindMode)}
+                                        >
+                                            <option value="none">Normal vision</option>
+                                            <option value="deuteranopia">Deuteranopia (green-blind)</option>
+                                            <option value="protanopia">Protanopia (red-blind)</option>
+                                            <option value="tritanopia">Tritanopia (blue-blind)</option>
+                                        </select>
+                                        <p className="text-xs text-muted-foreground">Applies a color filter to simulate and compensate for color blindness.</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <RBLabel className="text-xs text-muted-foreground">Line spacing</RBLabel>
+                                        <select
+                                            className="w-full rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm"
+                                            value={lineSpacing}
+                                            onChange={(e) => setLineSpacing(e.target.value as LineSpacing)}
+                                        >
+                                            <option value="default">Default</option>
+                                            <option value="relaxed">Relaxed (1.9×)</option>
+                                            <option value="loose">Loose (2.4×)</option>
+                                        </select>
+                                        <p className="text-xs text-muted-foreground">Increases vertical spacing between lines for easier reading.</p>
+                                    </div>
+                                </div>
+
+                                {[{
+                                    label: "Dyslexia-friendly font",
+                                    desc: "Switches to a wider-spaced font that is easier to read for people with dyslexia.",
+                                    value: dyslexicFont, onChange: () => setDyslexicFont(!dyslexicFont),
+                                }, {
+                                    label: "Highlight all links",
+                                    desc: "Adds a visible outline and underline to every clickable link on the page.",
+                                    value: highlightLinks, onChange: () => setHighlightLinks(!highlightLinks),
+                                }].map(({ label, desc, value, onChange }) => (
+                                    <div key={label} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/30">
+                                        <div>
+                                            <div className="text-sm font-medium">{label}</div>
+                                            <div className="text-xs text-muted-foreground">{desc}</div>
+                                        </div>
+                                        <button
+                                            aria-pressed={value}
+                                            onClick={onChange}
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 ${value ? "bg-brand-blue-600" : "bg-slate-700"}`}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${value ? "translate-x-6" : "translate-x-1"}`} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </CardContent>
+                        </Card>
+
+                        {/* Motion & Interaction */}
+                        <Card className="border-border/50 bg-card/80 backdrop-blur">
+                            <CardHeader>
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <Shield className="size-4" /> Motion &amp; Interaction
+                                </CardTitle>
+                                <CardDescription>Cursor size and animation preferences</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-5">
+                                <div className="space-y-2">
+                                    <RBLabel className="text-xs text-muted-foreground">Cursor size</RBLabel>
+                                    <select
+                                        className="w-full rounded-md border border-border/40 bg-muted/20 px-3 py-2 text-sm"
+                                        value={cursorSize}
+                                        onChange={(e) => setCursorSize(e.target.value as CursorSize)}
+                                    >
+                                        <option value="default">Default</option>
+                                        <option value="large">Large</option>
+                                        <option value="x-large">Extra large</option>
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">Increases the mouse cursor size for better visibility.</p>
                                 </div>
 
                                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/30">
                                     <div>
                                         <div className="text-sm font-medium">Reduced motion</div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Disables UI animations and transitions (useful for motion sensitivity).
-                                        </div>
+                                        <div className="text-xs text-muted-foreground">Disables UI animations and transitions (useful for vestibular disorders / motion sensitivity).</div>
                                     </div>
                                     <button
+                                        aria-pressed={reducedMotion}
                                         onClick={() => setReducedMotion(!reducedMotion)}
                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 ${reducedMotion ? "bg-brand-blue-600" : "bg-slate-700"}`}
                                     >
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${reducedMotion ? "translate-x-6" : "translate-x-1"}`} />
                                     </button>
                                 </div>
+                            </CardContent>
+                        </Card>
 
+                        {/* Text-to-Speech */}
+                        <Card className="border-border/50 bg-card/80 backdrop-blur">
+                            <CardHeader>
+                                <CardTitle className="text-sm flex items-center gap-2">
+                                    <Shield className="size-4" /> Text-to-Speech
+                                </CardTitle>
+                                <CardDescription>Browser built-in speech synthesis — no plugin required</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
                                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/30">
                                     <div>
-                                        <div className="text-sm font-medium">Dyslexia-friendly font</div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Switches to a more readable font with wider spacing (helps with dyslexia).
-                                        </div>
+                                        <div className="text-sm font-medium">Read selected text aloud 🔊</div>
+                                        <div className="text-xs text-muted-foreground">Select any text on the page with your mouse and it will be read aloud automatically.</div>
                                     </div>
                                     <button
-                                        onClick={() => setDyslexicFont(!dyslexicFont)}
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 ${dyslexicFont ? "bg-brand-blue-600" : "bg-slate-700"}`}
+                                        aria-pressed={textToSpeech}
+                                        onClick={() => setTextToSpeech(!textToSpeech)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue-500/40 ${textToSpeech ? "bg-brand-blue-600" : "bg-slate-700"}`}
                                     >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${dyslexicFont ? "translate-x-6" : "translate-x-1"}`} />
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${textToSpeech ? "translate-x-6" : "translate-x-1"}`} />
                                     </button>
                                 </div>
 
-                                <div className="flex items-center gap-2">
-                                    <RBButton variant="secondary" size="sm" onClick={resetAccessibility}>
-                                        Reset accessibility
+                                <div className="flex items-center gap-3">
+                                    <RBButton
+                                        variant="secondary" size="sm"
+                                        onClick={() => speak("Welcome to Trady. Text to speech is working correctly.")}
+                                        className="gap-2"
+                                    >
+                                        🔊 Test voice
                                     </RBButton>
-                                    <div className="text-xs text-muted-foreground">
-                                        Tip: press <span className="font-mono">Ctrl/⌘ + Shift + M</span> on Testing to toggle coach mode.
-                                    </div>
+                                    {isSpeaking && (
+                                        <RBButton variant="secondary" size="sm" onClick={stopSpeech} className="gap-2 text-rose-400">
+                                            ⏹ Stop
+                                        </RBButton>
+                                    )}
+                                    {isSpeaking && (
+                                        <span className="text-xs text-brand-blue-400 animate-pulse">▶ Speaking…</span>
+                                    )}
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-muted/20 border border-border/30 text-xs text-muted-foreground space-y-1">
+                                    <p className="font-medium text-foreground">How to use:</p>
+                                    <ul className="list-disc list-inside space-y-0.5">
+                                        <li>Enable the toggle above</li>
+                                        <li>Select any text on any page with your mouse</li>
+                                        <li>The selected text will be read aloud automatically</li>
+                                        <li>Or use the sidebar Accessibility panel → “Read page” to read visible content</li>
+                                    </ul>
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Reset */}
+                        <div className="flex items-center gap-3">
+                            <RBButton variant="secondary" size="sm" onClick={resetAccessibility}>
+                                Reset all accessibility settings
+                            </RBButton>
+                            <div className="text-xs text-muted-foreground">
+                                All preferences are stored locally in your browser — nothing is sent to the server.
+                            </div>
+                        </div>
+
                     </TabsContent>
 
                 </Tabs>
