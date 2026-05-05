@@ -1,0 +1,60 @@
+django>=5.0,<6.0
+djangorestframework>=3.15
+django-cors-headers>=4.3
+psycopg2-binary>=2.9
+influxdb-client>=1.40
+redis>=5.0
+channels>=4.0
+twilio>=9.0
+cryptography>=42.0
+facenet-pytorch>=2.5
+deepface>=0.0.93
+# LangChain ecosystem (free models)
+langchain>=0.2
+langgraph>=0.2
+langchain-community>=0.2
+langchain-huggingface>=0.0.1
+
+# Free LLMs
+transformers>=4.40
+torch>=2.0
+sentence-transformers>=2.6
+
+# Data processing
+pandas>=2.2
+numpy>=1.26
+scipy>=1.12
+scikit-learn>=1.4
+ta>=0.11.0  # Technical analysis
+
+# Async & Task Queue
+celery>=5.3
+celery[redis]>=5.3
+apscheduler>=3.10.0  # Background task scheduling
+
+# Utils
+python-dotenv>=1.0
+pydantic>=2.7
+python-dateutil>=2.9
+
+# OCR pipeline
+opencv-python-headless>=4.9   # image preprocessing (no GUI needed on server)
+easyocr>=1.7                  # OCR engine with bounding boxes (multilingual)
+Pillow>=10.0                  # image I/O helper
+
+# RAG Strategy Tutor
+pypdf>=4.0                    # PDF text extraction (no external binaries needed)
+faiss-cpu>=1.7                # Vector similarity search (GPU via faiss-gpu if CUDA available)
+# Embeddings + generation: Ollama (local, unlimited) + HuggingFace fallback
+# transformers and sentence-transformers already listed above
+
+# Production
+gunicorn>=22.0
+drf-spectacular>=0.27  # API docs
+
+# WebSocket real-time
+channels-redis>=4.2
+daphne>=4.0            # ASGI server for WebSocket support
+
+# Geopolitical agent
+feedparser>=6.0        # RSS feed parsing (optional, graceful fallback to ET)

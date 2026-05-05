@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ── Users ────────────────────────────────────────────────────────────────────
+model User {
+  id               String           @id @default(cuid())
+  name             String?
+  email            String           @unique
+  hashedPassword   String
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  positions        Position[]
+  settings         UserSettings?
+  kycVerifications KycVerification[]
+
+  @@map("user")
+}
+
+// ── KYC Verification ─────────────────────────────────────────────────────────
+model KycVerification {
+  id              Int       @id @default(autoincrement())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+
+  status          String    @default("pending")
+
+  fullName        String?
+  cinNumber       String?
+  nationality     String?
+  documentCountry String?
+  documentType    String?
+  dateOfBirth     String?
+  expirationDate  String?
+
+  ocrText         String?
+  confidenceBasic Float?
+
+  uploadedAt      DateTime  @default(now())
+  confirmedAt     DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@map("kycverification")
+}
+
+// ── Trading Positions ────────────────────────────────────────────────────────
+model Position {
+  id           Int       @id @default(autoincrement())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+
+  pair         String
+  side         String
+  size         Float
+  entryPrice   Float
+  currentPrice Float
+  stopLoss     Float?
+  takeProfit   Float?
+  pnl          Float     @default(0)
+  pnlPct       Float     @default(0)
+  status       String    @default("OPEN")
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([pair])
+  @@map("position")
+}
+
+// ── User Settings ────────────────────────────────────────────────────────────
+model UserSettings {
+  id                   Int     @id @default(autoincrement())
+  userId               String  @unique
+  user                 User    @relation(fields: [userId], references: [id])
+
+  maxPositionSize      Float   @default(0.5)
+  maxDailyLoss         Float   @default(500)
+  maxDrawdown          Float   @default(15)
+  maxOpenPositions     Int     @default(4)
+  minConsensus         Int     @default(2)
+  minConfidence        Float   @default(60)
+  defaultStopLoss      Float   @default(40)
+  defaultTakeProfit    Float   @default(80)
+  trailingStop         Boolean @default(false)
+
+  notifySignals        Boolean @default(true)
+  notifyHighConfidence Boolean @default(true)
+  notifyAgentOffline   Boolean @default(true)
+  notifyDrawdown       Boolean @default(true)
+  notifyDailySummary   Boolean @default(false)
+  notifyCalendar       Boolean @default(true)
+
+  @@map("usersettings")
+}
+
+// ── Archived / Unused models ─────────────────────────────────────────────────
+model Signal {
+  id             Int      @id @default(autoincrement())
+  pair           String
+  direction      String
+  confidence     Float
+  macroScore     Float?
+  technicalScore Float?
+  sentimentScore Float?
+  consensusCount Int      @default(0)
+  rationale      String?
+  entryPrice     Float?
+  stopLoss       Float?
+  takeProfit     Float?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@ignore
+  @@map("signal")
+}
+
+model Order {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  pair       String
+  side       String
+  type       String
+  size       Float
+  price      Float?
+  stopLoss   Float?
+  takeProfit Float?
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+
+  @@ignore
+  @@map("order")
+}

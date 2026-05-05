@@ -1,0 +1,24 @@
+"""
+ASGI configuration for FX Alpha Platform.
+Enables HTTP (Django WSGI) + WebSocket (Django Channels) protocols.
+"""
+import os
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+# Initialise Django before importing channel routing (apps need to be ready)
+django_asgi_app = get_asgi_application()
+
+from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
+from channels.auth import AuthMiddlewareStack  # noqa: E402
+from trading_ws.routing import websocket_urlpatterns  # noqa: E402
+
+application = ProtocolTypeRouter(
+    {
+        "http": django_asgi_app,
+        "websocket": AuthMiddlewareStack(
+            URLRouter(websocket_urlpatterns)
+        ),
+    }
+)
