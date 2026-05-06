@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id             String     @id @default(cuid())
+  name           String?
+  email          String     @unique
+  hashedPassword String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  positions      Position[]
+  orders         Order[]
+  settings       UserSettings?
+}
+
+model Position {
+  id           Int      @id @default(autoincrement())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  pair         String   @db.VarChar(10)
+  side         String   @db.VarChar(4)
+  size         Float
+  entryPrice   Float
+  currentPrice Float
+  stopLoss     Float?
+  takeProfit   Float?
+  pnl          Float    @default(0)
+  pnlPct       Float    @default(0)
+  status       String   @default("OPEN") @db.VarChar(10)
+  openedAt     DateTime @default(now())
+  closedAt     DateTime?
+
+  @@index([userId])
+}
+
+model Order {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  pair      String   @db.VarChar(10)
+  side      String   @db.VarChar(4)
+  type      String   @db.VarChar(10)
+  size      Float
+  price     Float?
+  stopLoss  Float?
+  takeProfit Float?
+  status    String   @default("PENDING") @db.VarChar(10)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Signal {
+  id              Int      @id @default(autoincrement())
+  pair            String   @db.VarChar(10)
+  direction       String   @db.VarChar(10)
+  confidence      Float
+  macroScore      Float?
+  technicalScore  Float?
+  sentimentScore  Float?
+  consensusCount  Int      @default(0)
+  rationale       String?  @db.Text
+  entryPrice      Float?
+  stopLoss        Float?
+  takeProfit      Float?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+model UserSettings {
+  id                    Int     @id @default(autoincrement())
+  userId                String  @unique
+  user                  User    @relation(fields: [userId], references: [id])
+  maxPositionSize       Float   @default(0.5)
+  maxDailyLoss          Float   @default(500)
+  maxDrawdown           Float   @default(15)
+  maxOpenPositions      Int     @default(4)
+  minConsensus          Int     @default(2)
+  minConfidence         Float   @default(60)
+  defaultStopLoss       Int     @default(40)
+  defaultTakeProfit     Int     @default(80)
+  trailingStop          Boolean @default(false)
+  notifySignals         Boolean @default(true)
+  notifyHighConfidence  Boolean @default(true)
+  notifyAgentOffline    Boolean @default(true)
+  notifyDrawdown        Boolean @default(true)
+  notifyDailySummary    Boolean @default(false)
+  notifyCalendar        Boolean @default(true)
+}
