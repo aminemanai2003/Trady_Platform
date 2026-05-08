@@ -71,6 +71,12 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_F74F3A9228764251838208707D32544E }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_084CDFD4F5C34890A1151159CA1278D5 }}
 
+      - name: Set startup command
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az webapp config set --resource-group trady-rg --name trady-platform --startup-file "node server.js"
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
