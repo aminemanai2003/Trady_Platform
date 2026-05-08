@@ -27,15 +27,28 @@ jobs:
 
       - name: npm install and build
         working-directory: frontend
+        env:
+          DATABASE_URL: "file:./dev.db"
         run: |
           npm install
-          npm run build --if-present
+          npx prisma generate
+          npx prisma db push --accept-data-loss
+          npm run build
+
+      - name: Prepare standalone deployment
+        working-directory: frontend
+        run: |
+          cp -r .next/standalone standalone
+          cp -r .next/static standalone/.next/static
+          cp -r public standalone/public
+          cp prisma/schema.prisma standalone/prisma/schema.prisma
+          cp dev.db standalone/dev.db 2>/dev/null || true
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: frontend
+          path: frontend/standalone
 
   deploy:
     runs-on: ubuntu-latest
