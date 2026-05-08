@@ -41,6 +41,7 @@ jobs:
           cp -r .next/standalone standalone
           cp -r .next/static standalone/.next/static
           cp -r public standalone/public
+          mkdir -p standalone/prisma
           cp prisma/schema.prisma standalone/prisma/schema.prisma
           cp dev.db standalone/dev.db 2>/dev/null || true
 
