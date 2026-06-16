@@ -1,0 +1,10 @@
+MetaTrader5>=5.0.45
+pandas>=2.0.0
+influxdb-client>=1.36.0
+psycopg2-binary>=2.9.9
+fredapi>=0.5.1
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+python-dotenv>=1.0.0
+feedparser>=6.0.10

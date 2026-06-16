@@ -1,0 +1,9 @@
+ALTER TABLE "user" ADD COLUMN "image" TEXT;
+ALTER TABLE "user" ADD COLUMN "phoneNumber" TEXT;
+ALTER TABLE "user" ADD COLUMN "country" TEXT;
+ALTER TABLE "user" ADD COLUMN "city" TEXT;
+ALTER TABLE "user" ADD COLUMN "address" TEXT;
+ALTER TABLE "user" ADD COLUMN "profession" TEXT;
+ALTER TABLE "user" ADD COLUMN "tradingExperience" TEXT;
+ALTER TABLE "user" ADD COLUMN "preferredMarket" TEXT;
+ALTER TABLE "user" ADD COLUMN "bio" TEXT;
